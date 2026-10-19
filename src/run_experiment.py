@@ -4,7 +4,14 @@ from collections.abc import Callable
 
 from .models import Ship, State, Vehicle
 from .neighbors import random_neighbor
-from .problem import bonus_fitness, fitness, grid_from_state, is_valid, load_problem, random_state
+from .problem import (
+    bonus_fitness,
+    fitness,
+    grid_from_state,
+    is_valid,
+    load_problem,
+    random_state,
+)
 
 Evaluator = Callable[[State, dict[str, Vehicle]], float]
 
@@ -18,7 +25,8 @@ def print_ship(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> None:
         print(" ".join(f"{cell:<{cell_width}}" for cell in cells).rstrip())
 
 
-def print_config(label: str, state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate: Evaluator = fitness, score_label: str = "Fitness") -> None:
+def print_config(label: str, state: State, ship: Ship, vehicles: dict[str, Vehicle],
+                 evaluate: Evaluator = fitness, score_label: str = "Fitness") -> None:
     print(f"{label}:")
     print_ship(state, ship, vehicles)
 
@@ -38,7 +46,8 @@ def print_config(label: str, state: State, ship: Ship, vehicles: dict[str, Vehic
     print(f"Outside: {', '.join(outside_ids) if outside_ids else 'None'}")
 
 
-def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, seed: int, evaluate: Evaluator = fitness, objective: str = "fee") -> tuple[State, State | None]:
+def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, seed: int,
+               evaluate: Evaluator = fitness, objective: str = "fee") -> tuple[State, State | None]:
     initial_state = random_state(ship, vehicles, rng)
     if not is_valid(initial_state, ship, vehicles):
         raise RuntimeError("Generated initial state is invalid")
@@ -47,8 +56,13 @@ def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, see
     print(f"Seed: {seed}")
     print(f"Objective: {objective}")
     print()
-    score_label = "Fitness" if objective == "fee" else "Density"
-    difference_label = "Fitness Difference" if objective == "fee" else "Density Difference"
+    if objective == "fee":
+        score_label = "Fitness"
+        difference_label = "Fitness Difference"
+    else:
+        score_label = "Density"
+        difference_label = "Density Difference"
+
     print_config("Initial State", initial_state, ship, vehicles, evaluate, score_label)
 
     neighbor = random_neighbor(initial_state, ship, vehicles, rng)
