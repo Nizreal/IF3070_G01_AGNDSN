@@ -1,8 +1,7 @@
 import argparse
 import random
-from collections.abc import Callable
 
-from .models import Ship, State, Vehicle
+from .models import Ship, State, Vehicle, Placement
 from .neighbors import random_neighbor
 from .problem import (
     bonus_fitness,
@@ -12,9 +11,7 @@ from .problem import (
     load_problem,
     random_state,
 )
-
-Evaluator = Callable[[State, dict[str, Vehicle]], float]
-
+from .algorithms.steepest import steepest_ascent
 
 def print_ship(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> None:
     grid = grid_from_state(state, ship, vehicles)
@@ -26,7 +23,7 @@ def print_ship(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> None:
 
 
 def print_config(label: str, state: State, ship: Ship, vehicles: dict[str, Vehicle],
-                 evaluate: Evaluator = fitness, score_label: str = "Fitness") -> None:
+                 evaluate=fitness, score_label: str = "Fitness") -> None:
     print(f"{label}:")
     print_ship(state, ship, vehicles)
 
@@ -47,7 +44,7 @@ def print_config(label: str, state: State, ship: Ship, vehicles: dict[str, Vehic
 
 
 def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, seed: int,
-               evaluate: Evaluator = fitness, objective: str = "fee") -> tuple[State, State | None]:
+               evaluate=fitness, objective: str = "fee") -> tuple[State, State | None]:
     initial_state = random_state(ship, vehicles, rng)
     if not is_valid(initial_state, ship, vehicles):
         raise RuntimeError("Generated initial state is invalid")
@@ -82,16 +79,15 @@ def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, see
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run a terminal experiment or debug the shared model.")
-    parser.add_argument("--algorithm", choices=("random", "hc", "sa", "ga"), default="random")
+    parser.add_argument("--algorithm", choices=("random", "hc", "sa", "ga"))
     parser.add_argument("--input", default="data/example.json", help="Path to the problem JSON file")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
+    parser.add_argument("--fixed-start", action="store_true")
     args = parser.parse_args(argv)
 
-    if args.algorithm != "random":
-        algorithm_names = {"hc": "Hill Climbing", "sa": "Simulated Annealing", "ga": "Genetic Algorithm"}
-        print(f"{algorithm_names[args.algorithm]} is not implemented yet.")
-        print(f"Objective '{args.objective}' is not applied until this algorithm supports evaluate.")
+    if args.algorithm in ("sa", "ga"):
+        print(f"{args.algorithm.upper()} is not implemented yet.")
         return
 
     ship, vehicles = load_problem(args.input)
@@ -100,8 +96,25 @@ def main(argv: list[str] | None = None) -> None:
         evaluate = fitness
     else:
         evaluate = bonus_fitness
-    run_random(ship, vehicles, rng, args.seed, evaluate, args.objective)
 
+    if args.algorithm == "random":
+        run_random(ship, vehicles, rng, args.seed, evaluate, args.objective)
+        return
+    if args.algorithm == "hc":
+        if args.fixed_start:
+            initial_state = State({
+                "A": None,
+                "B": Placement(0, 0, False),
+                "C": None
+            })
+        else:
+            initial_state = random_state(ship, vehicles, rng)
+
+        final_state = steepest_ascent(initial_state, ship, vehicles, evaluate=evaluate)
+
+        print_config("Initial State", initial_state, ship, vehicles, evaluate)
+        print()
+        print_config("Final State", final_state, ship, vehicles, evaluate)
 
 if __name__ == "__main__":
     main()
