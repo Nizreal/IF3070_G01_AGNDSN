@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run a terminal experiment or debug the shared model.")
     parser.add_argument("--algorithm", choices=("random", "hc", "sa", "ga"))
     parser.add_argument("--input", default="data/example.json", help="Path to the problem JSON file")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
     parser.add_argument("--fixed-start", action="store_true")
     args = parser.parse_args(argv)
