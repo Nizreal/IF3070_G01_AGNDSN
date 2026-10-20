@@ -11,6 +11,8 @@ from .problem import (
     load_problem,
     random_state,
 )
+from .algorithms.steepest import steepest_ascent
+from .algorithms.simulated_annealing import simulated_annealing
 from .algorithms.stochastic import stochastic
 from .algorithms.sideways import sideways
 
@@ -85,9 +87,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
     parser.add_argument("--fixed-start", action="store_true")
+    parser.add_argument("--initial-temperature", type=float, default=90.0)
+    parser.add_argument("--cooling-rate", type=float, default=0.995)
+    parser.add_argument("--max-iterations", type=int, default=2000)
+
     args = parser.parse_args(argv)
 
-    if args.algorithm in ("sa", "ga"):
+    if args.algorithm in ("ga"):
         print(f"{args.algorithm.upper()} is not implemented yet.")
         return
 
@@ -118,6 +124,15 @@ def main(argv: list[str] | None = None) -> None:
         print_config("Initial State", initial_state, ship, vehicles, evaluate)
         print()
         print_config("Final State", final_state, ship, vehicles, evaluate)
+    if args.algorithm == "sa":
+        initial_state = random_state(ship, vehicles, rng)
+        
+        final_state = simulated_annealing(initial_state, ship, vehicles, rng, evaluate=evaluate, initial_temperature=args.initial_temperature, cooling_rate=args.cooling_rate, max_iterations=args.max_iterations)
+
+        print_config("Initial State", initial_state, ship, vehicles, evaluate)
+        print()
+        print_config("Final State", final_state, ship, vehicles, evaluate)
+
 
 if __name__ == "__main__":
     main()
