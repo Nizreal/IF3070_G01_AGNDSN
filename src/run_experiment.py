@@ -15,6 +15,7 @@ from .algorithms.steepest import steepest_ascent
 from .algorithms.simulated_annealing import simulated_annealing
 from .algorithms.stochastic import stochastic
 from .algorithms.sideways import sideways
+from .algorithms.random_restart import random_restart
 
 def print_ship(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> None:
     grid = grid_from_state(state, ship, vehicles)
@@ -82,7 +83,7 @@ def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, see
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run a terminal experiment or debug the shared model.")
-    parser.add_argument("--algorithm", choices=("random", "stochastic", "sideways", "sa", "ga"))
+    parser.add_argument("--algorithm", choices=("random", "stochastic", "sideways", "simulated_annealing", "genetic", "random_restart"))
     parser.add_argument("--input", default="data/example.json", help="Path to the problem JSON file")
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
@@ -90,10 +91,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--initial-temperature", type=float, default=90.0)
     parser.add_argument("--cooling-rate", type=float, default=0.995)
     parser.add_argument("--max-iterations", type=int, default=2000)
+    parser.add_argument("--max-restarts", type=int, default=100)
 
     args = parser.parse_args(argv)
 
-    if args.algorithm in ("ga"):
+    if args.algorithm in ("genetic"):
         print(f"{args.algorithm.upper()} is not implemented yet.")
         return
 
@@ -107,6 +109,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.algorithm == "random":
         run_random(ship, vehicles, rng, args.seed, evaluate, args.objective)
         return
+    
     if args.algorithm == "sideways":
         if args.fixed_start:
             initial_state = State({
@@ -124,10 +127,20 @@ def main(argv: list[str] | None = None) -> None:
         print_config("Initial State", initial_state, ship, vehicles, evaluate)
         print()
         print_config("Final State", final_state, ship, vehicles, evaluate)
-    if args.algorithm == "sa":
+
+    if args.algorithm == "simulated_annealing":
         initial_state = random_state(ship, vehicles, rng)
         
         final_state = simulated_annealing(initial_state, ship, vehicles, rng, evaluate=evaluate, initial_temperature=args.initial_temperature, cooling_rate=args.cooling_rate, max_iterations=args.max_iterations)
+
+        print_config("Initial State", initial_state, ship, vehicles, evaluate)
+        print()
+        print_config("Final State", final_state, ship, vehicles, evaluate)
+
+    if args.algorithm == "random_restart":
+        initial_state = random_state(ship, vehicles, rng)
+
+        final_state = random_restart(initial_state, ship, vehicles, rng, evaluate, max_restarts=args.max_restarts)
 
         print_config("Initial State", initial_state, ship, vehicles, evaluate)
         print()
