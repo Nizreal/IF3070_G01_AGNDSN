@@ -7,6 +7,8 @@ from .algorithms.steepest import steepest_ascent
 from .algorithms.stochastic import stochastic
 from .models import Placement, Ship, State, Vehicle
 from .problem import bonus_fitness, fitness, grid_from_state, is_valid, random_state
+from .progress import ProgressCallback
+from .trace import serialize_state
 
 
 ALGORITHMS = {
@@ -100,16 +102,6 @@ def parse_state(data, vehicles):
     return State(placements)
 
 
-def serialize_state(state):
-    placements = {}
-    for vehicle_id, placement in state.placements.items():
-        if placement is None:
-            placements[vehicle_id] = None
-        else:
-            placements[vehicle_id] = {"x": placement.x, "y": placement.y, "rotated": placement.rotated}
-    return {"placements": placements}
-
-
 def serialize_grid(state, ship, vehicles):
     return grid_from_state(state, ship, vehicles)
 
@@ -134,7 +126,7 @@ def problem_metrics(state, ship, vehicles, evaluate):
     }
 
 
-def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=None):
+def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=None, on_progress: ProgressCallback | None = None):
     if algorithm_id in PENDING_ALGORITHMS:
         raise NotImplementedError(f"{PENDING_ALGORITHMS[algorithm_id]} implementation is pending.")
     if algorithm_id not in ALGORITHMS:
@@ -150,7 +142,13 @@ def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=N
         raise ValueError("Initial state is invalid for this ship and vehicle list.")
 
     started = perf_counter()
-    final_state = ALGORITHMS[algorithm_id]["function"](initial_state, ship, vehicles, evaluate=evaluate)
+    final_state = ALGORITHMS[algorithm_id]["function"](
+        initial_state,
+        ship,
+        vehicles,
+        evaluate=evaluate,
+        on_progress=on_progress,
+    )
     duration_ms = (perf_counter() - started) * 1000
     if not is_valid(final_state, ship, vehicles):
         raise RuntimeError("Algorithm returned a state that failed validation.")
@@ -167,7 +165,7 @@ def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=N
         "final_state": serialize_state(final_state),
         "initial_grid": serialize_grid(initial_state, ship, vehicles),
         "final_grid": serialize_grid(final_state, ship, vehicles),
-        "trace_available": False,
+        "trace_available": on_progress is not None,
         "frames": [],
         "metrics": [],
         "summary": {
