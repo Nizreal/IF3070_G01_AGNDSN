@@ -3,15 +3,173 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cargo Ship Placement</title>
+  <meta name="theme-color" content="#214b3b">
+  <title>CARGO // SEARCH LAB</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
-  <main>
-    <h1>Cargo Ship Placement</h1>
-    <p>Shared problem foundation for the IF3070 vehicle loading assignment.</p>
-    <p id="status">Loading JavaScript...</p>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Cargo Search Lab home">CARGO <span>//</span> SEARCH LAB</a>
+    <div class="course-tag">IF3070 <span>·</span> VEHICLE PLACEMENT / 2026</div>
+    <div class="session-status"><i id="status-light"></i><span id="status">CONNECTING</span></div>
+  </header>
+
+  <main class="workbench">
+    <section class="intro-row" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">FIELD NOTES &nbsp; / &nbsp; LOCAL SEARCH LAB &nbsp; 01</p>
+        <h1 id="page-title">Deck configuration</h1>
+      </div>
+      <div class="actions" aria-label="Problem file actions">
+        <button class="button quiet" id="load-example" type="button">Load example</button>
+        <label class="button quiet file-button">Import JSON<input id="import-file" type="file" accept="application/json,.json"></label>
+        <button class="button quiet" id="export-json" type="button">Export JSON</button>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+      <aside class="panel editor-panel" aria-labelledby="editor-title">
+        <div class="panel-heading">
+          <div><p class="eyebrow">01 / INPUT</p><h2 id="editor-title">Problem editor</h2></div>
+          <span class="tiny-code">CONFIG</span>
+        </div>
+        <div class="ship-fields">
+          <label>Deck width <input id="ship-width" type="number" min="1" step="1"></label>
+          <label>Deck length <input id="ship-length" type="number" min="1" step="1"></label>
+          <label>Maximum capacity <input id="ship-capacity" type="number" min="0" step="any"></label>
+        </div>
+        <div class="vehicle-heading">
+          <h3>Vehicles <span id="vehicle-count">0</span></h3>
+          <button class="icon-button" id="add-vehicle" type="button" aria-label="Add vehicle">+</button>
+        </div>
+        <div id="vehicle-list" class="vehicle-list"></div>
+        <div class="editor-foot">
+          <span id="grid-count">0 deck cells</span>
+          <button class="button primary" id="validate-button" type="button">Validate input</button>
+        </div>
+        <p id="validation-message" class="message" aria-live="polite"></p>
+      </aside>
+
+      <section class="panel deck-panel" aria-labelledby="deck-title">
+        <div class="panel-heading deck-heading">
+          <div><p class="eyebrow">02 / SHIP PLAN <span id="deck-dimensions">—</span></p><h2 id="deck-title">Deck layout</h2></div>
+          <label class="view-select">Displayed state
+            <select id="state-view">
+              <option value="editor">Editor</option>
+              <option value="initial">Initial state</option>
+              <option value="final">Final result</option>
+              <option value="trace">Recorded iteration</option>
+            </select>
+          </label>
+        </div>
+        <div class="placement-toolbar" aria-label="Initial vehicle placement">
+          <div class="placement-heading"><strong>Initial placement</strong><span id="placement-mode">AUTO START</span></div>
+          <p>Select a vehicle, then click an empty deck cell or enter its top-left coordinate. Python checks deck bounds, overlap, and capacity. Manual placement starts a single algorithm run; three-trial experiments keep their generated starts.</p>
+          <div class="placement-fields">
+            <label>Vehicle<select id="placement-vehicle"></select></label>
+            <label>X<input id="placement-x" type="number" min="0" step="1" value="0"></label>
+            <label>Y<input id="placement-y" type="number" min="0" step="1" value="0"></label>
+            <label class="rotation-label"><input id="placement-rotated" type="checkbox"> Rotate 90°</label>
+          </div>
+          <div class="placement-actions">
+            <button class="button primary" id="place-button" type="button">Place vehicle</button>
+            <button class="button quiet" id="unload-button" type="button">Move outside</button>
+            <button class="button quiet" id="clear-placement-button" type="button">Use automatic start</button>
+          </div>
+          <p id="placement-message" class="message placement-message" aria-live="polite">Algorithm creates the start state automatically until you place a vehicle.</p>
+        </div>
+        <div class="deck-scroll">
+          <div class="deck-wrap">
+            <div id="y-axis" class="axis y-axis" aria-hidden="true"></div>
+            <div>
+              <div id="x-axis" class="axis x-axis" aria-hidden="true"></div>
+              <div id="deck" class="deck" aria-label="Ship deck grid"></div>
+            </div>
+          </div>
+        </div>
+        <div id="vehicle-inspector" class="inspector">Choose a vehicle on the deck or in the outside list to inspect its details.</div>
+        <div class="deck-bottom">
+          <div class="unloaded-block">
+            <div class="unloaded-title">OUTSIDE / UNLOADED <span id="unloaded-count">0</span></div>
+            <div id="unloaded-list" class="unloaded-list"></div>
+          </div>
+          <div class="deck-stats" aria-label="Current deck metrics">
+            <div><span>LOADED</span><strong id="loaded-count">0 / 0</strong></div>
+            <div><span>WEIGHT</span><strong id="weight-metric">0 / 0</strong></div>
+            <div><span>OCCUPIED</span><strong id="area-metric">0 / 0</strong></div>
+            <div><span>OBJECTIVE</span><strong id="objective-metric">—</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel run-panel" aria-labelledby="run-title">
+        <div class="panel-heading">
+          <div><p class="eyebrow">03 / SEARCH</p><h2 id="run-title">Run controls</h2></div>
+          <span class="signal">● READY</span>
+        </div>
+        <label>Algorithm<select id="algorithm-select"></select></label>
+        <div class="algorithm-note" id="algorithm-note">Choose an implemented search method.</div>
+        <div class="run-fields">
+          <label>Objective
+            <select id="objective-select">
+              <option value="fee">Shipping fee</option>
+              <option value="density">Optional bonus · fee / area</option>
+            </select>
+          </label>
+          <label>Seed<input id="seed-input" type="number" value="42" step="1"></label>
+        </div>
+        <button class="button primary run-button" id="run-button" type="button">Run algorithm <span>↗</span></button>
+        <button class="button secondary run-button" id="experiment-button" type="button">Run 3 trials</button>
+        <div id="result-summary" class="result-summary">
+          <p>No computation yet.</p>
+          <small>The result panel shows values returned by the Python implementation.</small>
+        </div>
+        <div class="metric-cards">
+          <div><span>INITIAL OBJECTIVE</span><strong id="initial-objective">—</strong></div>
+          <div><span>IMPROVEMENT</span><strong id="improvement">—</strong></div>
+          <div><span>COMPUTE TIME</span><strong id="compute-time">—</strong></div>
+          <div><span>ITERATIONS</span><strong id="iteration-count">Not exposed</strong></div>
+        </div>
+        <div class="live-progress" id="live-progress" aria-live="polite">
+          <div class="live-progress-heading"><span>COMPUTATION</span><strong id="run-live-state">Ready</strong><span id="run-live-elapsed">0 ms</span></div>
+          <div class="indeterminate-progress" id="run-progress-bar"><i></i></div>
+          <div class="live-metrics">
+            <div><span>ITERATION</span><strong id="current-iteration">—</strong></div>
+            <div><span>CURRENT FITNESS</span><strong id="current-fitness">—</strong></div>
+            <div><span>BEST FITNESS</span><strong id="best-fitness">—</strong></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel playback-panel" aria-labelledby="trace-title">
+      <div class="panel-heading">
+        <div><p class="eyebrow">04 / SEARCH RECORD</p><h2 id="trace-title">History & playback</h2></div>
+        <span class="trace-badge" id="trace-status">NO TRACE</span>
+      </div>
+      <div class="playback-controls">
+        <button id="first-button" type="button" disabled aria-label="Jump to initial state">|◀</button>
+        <button id="previous-button" type="button" disabled aria-label="Previous step">◀</button>
+        <button id="play-button" type="button" disabled>Play</button>
+        <button id="next-button" type="button" disabled aria-label="Next step">▶</button>
+        <input id="timeline" type="range" min="0" max="0" value="0" disabled aria-label="Trace timeline">
+        <button id="last-button" type="button" disabled aria-label="Jump to final state">▶|</button>
+        <label>Speed<select id="speed-select" disabled><option>0.5×</option><option selected>1×</option><option>2×</option><option>4×</option></select></label>
+        <span id="frame-counter">—</span>
+      </div>
+      <p class="trace-explanation" id="trace-explanation">Playback is unavailable because the current algorithms return only their final state. No intermediate steps are invented.</p>
+      <div class="chart-wrap">
+        <div class="chart-caption"><span>OBJECTIVE / ITERATION</span><div><i class="legend-current"></i> CURRENT <i class="legend-best"></i> BEST</div></div>
+        <svg id="fitness-chart" viewBox="0 0 900 220" role="img" aria-label="Objective fitness over actual algorithm iterations"><title>Objective fitness over actual algorithm iterations</title></svg>
+      </div>
+      <div class="event-log-wrap"><div class="event-log-heading">RECORDED SEARCH EVENTS <span id="trace-count">0</span></div><ol id="event-log" class="event-log"></ol></div>
+      <div id="experiment-results" class="experiment-results" aria-live="polite"></div>
+    </section>
+    <footer>
+      <span>COORDINATES: ORIGIN TOP-LEFT · X → RIGHT · Y → DOWN</span>
+      <span>SEARCH ENGINE: PYTHON &nbsp; / &nbsp; VISUAL LAYER: BROWSER</span>
+    </footer>
   </main>
 </body>
 </html>

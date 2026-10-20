@@ -13,6 +13,8 @@ from .problem import (
 )
 from .algorithms.steepest import steepest_ascent
 from .algorithms.simulated_annealing import simulated_annealing
+from .algorithms.stochastic import stochastic
+from .algorithms.sideways import sideways
 
 def print_ship(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> None:
     grid = grid_from_state(state, ship, vehicles)
@@ -80,7 +82,7 @@ def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, see
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run a terminal experiment or debug the shared model.")
-    parser.add_argument("--algorithm", choices=("random", "hc", "sa", "ga"))
+    parser.add_argument("--algorithm", choices=("random", "stochastic", "sideways", "sa", "ga"))
     parser.add_argument("--input", default="data/example.json", help="Path to the problem JSON file")
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
@@ -105,17 +107,19 @@ def main(argv: list[str] | None = None) -> None:
     if args.algorithm == "random":
         run_random(ship, vehicles, rng, args.seed, evaluate, args.objective)
         return
-    if args.algorithm == "hc":
+    if args.algorithm == "sideways":
         if args.fixed_start:
             initial_state = State({
-                "A": None,
-                "B": Placement(0, 0, False),
-                "C": None
-            })
+            "A": None,
+            "B": None,
+            "C": Placement(0, 0, False),
+            "D": Placement(0, 3, True),
+        })
+    
         else:
             initial_state = random_state(ship, vehicles, rng)
 
-        final_state = steepest_ascent(initial_state, ship, vehicles, evaluate=evaluate)
+        final_state = sideways(initial_state, ship, vehicles, evaluate=evaluate)
 
         print_config("Initial State", initial_state, ship, vehicles, evaluate)
         print()
