@@ -28,3 +28,6 @@ class Placement:
 @dataclass
 class State:
     placements: dict[str, Placement | None]
+    
+    def key(self):
+        return tuple(sorted(self.placements.items()))
