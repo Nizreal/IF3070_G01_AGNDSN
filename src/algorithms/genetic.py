@@ -63,7 +63,7 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
     best_state = State(initial_best_state.placements.copy())
     best_fitness = scores[initial_best_index]
     max_fitness_history = [max(scores)]
-    average_fitness_history = [sum(scores) / len(scores)]
+    avg_fitness_history = [sum(scores) / len(scores)]
 
     for _ in range(iterations):
         new_population = []
@@ -85,7 +85,7 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
         generation_best_index = scores.index(max(scores))
         generation_best_fitness = scores[generation_best_index]
         max_fitness_history.append(generation_best_fitness)
-        average_fitness_history.append(sum(scores) / len(scores))
+        avg_fitness_history.append(sum(scores) / len(scores))
 
         if generation_best_fitness > best_fitness:
             best_state = State(population[generation_best_index].placements.copy())
@@ -97,7 +97,7 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
         "initial_state": initial_best_state,
         "best_state": best_state,
         "max_fitness_history": max_fitness_history,
-        "average_fitness_history": average_fitness_history,
+        "avg_fitness_history": avg_fitness_history,
         "population_size": population_size,
         "iterations": iterations,
         "runtime_ms": runtime_ms,
