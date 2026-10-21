@@ -12,6 +12,8 @@ const elements = {
   vehicleList: document.getElementById("vehicle-list"),
   algorithm: document.getElementById("algorithm-select"),
   gaSettings: document.getElementById("ga-settings"),
+  restartSettings: document.getElementById("restart-settings"),
+  maxRestarts: document.getElementById("max-restarts"),
   populationSize: document.getElementById("population-size"),
   iterations: document.getElementById("iterations"),
   objective: document.getElementById("objective-select"),
@@ -26,6 +28,8 @@ const elements = {
   trialPicker: document.getElementById("trial-picker"),
   trialSelect: document.getElementById("trial-select"),
   resultSummary: document.getElementById("result-summary"),
+  restartResult: document.getElementById("restart-result"),
+  restartIterations: document.getElementById("restart-iterations"),
   resultJson: document.getElementById("result-json"),
   fitnessChartSection: document.getElementById("fitness-chart-section"),
   fitnessChart: document.getElementById("fitness-chart"),
@@ -190,15 +194,20 @@ function clearResult() {
   elements.runError.textContent = "";
   elements.resultSummary.textContent = "No result yet.";
   elements.resultJson.textContent = "...";
+  elements.restartResult.hidden = true;
+  elements.restartIterations.replaceChildren();
   elements.fitnessChartSection.hidden = true;
   renderDeck(getInitialState());
 }
 
 function updateAlgorithmFields() {
   const isGenetic = elements.algorithm.value === "genetic";
+  const isRandomRestart = elements.algorithm.value === "random_restart";
   elements.gaSettings.hidden = !isGenetic;
   elements.populationSize.disabled = !isGenetic;
   elements.iterations.disabled = !isGenetic;
+  elements.restartSettings.hidden = !isRandomRestart;
+  elements.maxRestarts.disabled = !isRandomRestart;
 }
 
 function fillForm(problem) {
@@ -415,6 +424,8 @@ async function runAlgorithm(event) {
   elements.runError.textContent = "";
   elements.runButton.disabled = true;
   elements.fitnessChartSection.hidden = true;
+  elements.restartResult.hidden = true;
+  elements.restartIterations.replaceChildren();
   runStartedAt = performance.now();
   elements.status.textContent = "Running... 0.0 s";
   runTimer = setInterval(() => {
@@ -436,6 +447,9 @@ async function runAlgorithm(event) {
   if (elements.algorithm.value === "genetic") {
     payload.population_size = Number(elements.populationSize.value);
     payload.iterations = Number(elements.iterations.value);
+  }
+  if (elements.algorithm.value === "random_restart") {
+    payload.max_restarts = Number(elements.maxRestarts.value);
   }
 
   try {
@@ -544,6 +558,16 @@ function renderDeckAfterLayout() {
 
 function showTrial(index) {
   selectedTrial = runData.trials[index];
+  const restart = selectedTrial.random_restart;
+  elements.restartResult.hidden = !restart;
+  elements.restartIterations.replaceChildren();
+  if (restart) {
+    restart.iteration_per_search.forEach((count) => {
+      const item = document.createElement("li");
+      item.textContent = `${count} iterations`;
+      elements.restartIterations.append(item);
+    });
+  }
   const totalVehicles = Object.keys(selectedTrial.final_state.placements).length;
   const objectiveName = selectedTrial.objective === "eta" ? "ETA" : "Shipping fee";
   elements.resultSummary.textContent = [
@@ -559,6 +583,7 @@ function showTrial(index) {
       `Population: ${selectedTrial.genetic.population_size}`,
       `Iterations: ${selectedTrial.genetic.iterations}`,
     ] : []),
+    ...(restart ? [`Restarts: ${restart.restart_count} of ${restart.max_restarts}`] : []),
     `File: ${runData.result_file}`,
   ].join("\n");
   elements.resultJson.textContent = JSON.stringify({

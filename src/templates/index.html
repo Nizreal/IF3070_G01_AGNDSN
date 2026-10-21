@@ -51,6 +51,11 @@
           <input id="iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
         </label>
       </div>
+      <div id="restart-settings" class="fields" hidden>
+        <label>Maximum restarts
+          <input id="max-restarts" type="number" value="100" min="0" step="1" required form="run-form" disabled>
+        </label>
+      </div>
       <button id="run-button" type="submit" form="run-form">Run</button>
       <p id="run-error" class="error" role="alert"></p>
     </section>
@@ -113,6 +118,10 @@
           <select id="trial-select"></select>
         </label>
         <p id="result-summary">No result yet.</p>
+        <div id="restart-result" hidden>
+          <h3>Iterations per restart</h3>
+          <ol id="restart-iterations"></ol>
+        </div>
         <div id="fitness-chart-section" hidden>
           <h3>Objective by generation</h3>
           <canvas id="fitness-chart" height="240"></canvas>

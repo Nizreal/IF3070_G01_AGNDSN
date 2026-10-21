@@ -36,7 +36,12 @@ main {
   margin-top: 12px;
 }
 
-#ga-settings[hidden] {
+.run-settings #restart-settings {
+  margin-top: 12px;
+}
+
+#ga-settings[hidden],
+#restart-settings[hidden] {
   display: none;
 }
 
