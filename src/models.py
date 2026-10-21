@@ -16,7 +16,7 @@ class Ship:
     length: int
     max_capacity: float
 
-@dataclass
+@dataclass(frozen=True)
 class Placement:
     x: int
     y: int

@@ -1,9 +1,9 @@
 from ..models import State, Ship, Vehicle
-from ..problem import fitness
+from ..problem import shipping_fee_fitness
 from ..neighbors import iter_neighbors
 
 
-def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=fitness) -> State:
+def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness) -> State:
     current = initial_state
     sideways_max_iterate = 10000
     iterate_count = 0

@@ -3,139 +3,127 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#214b3b">
-  <title>CARGO // SEARCH LAB</title>
+  <title>Vehicle placement</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Cargo Search Lab home">CARGO <span>//</span> SEARCH LAB</a>
-    <div class="course-tag">IF3070 <span>·</span> VEHICLE PLACEMENT / 2026</div>
-    <div class="session-status"><i id="status-light"></i><span id="status">CONNECTING</span></div>
-  </header>
+  <main>
+    <h1>Visualisasi</h1>
+    <p id="status" role="status">Loading...</p>
 
-  <main class="workbench">
-    <section class="intro-row" aria-labelledby="page-title">
-      <div>
-        <p class="eyebrow">FIELD NOTES &nbsp; / &nbsp; LOCAL SEARCH LAB &nbsp; 01</p>
-        <h1 id="page-title">Deck configuration</h1>
-      </div>
-      <div class="actions" aria-label="Problem file actions">
-        <label class="button quiet file-button">Import JSON<input id="import-file" type="file" accept="application/json,.json"></label>
-        <button class="button quiet" id="export-json" type="button">Export JSON</button>
-      </div>
-    </section>
-
-    <div class="dashboard-grid">
-      <aside class="panel editor-panel" aria-labelledby="editor-title">
-        <div class="panel-heading">
-          <div><p class="eyebrow">01 / INPUT</p><h2 id="editor-title">Problem editor</h2></div>
-          <span class="tiny-code">CONFIG</span>
-        </div>
-        <div class="ship-fields">
-          <label>Deck width <input id="ship-width" type="number" min="1" step="1"></label>
-          <label>Deck length <input id="ship-length" type="number" min="1" step="1"></label>
-          <label>Maximum capacity <input id="ship-capacity" type="number" min="0" step="any"></label>
-        </div>
-        <div class="vehicle-heading">
-          <h3>Vehicles <span id="vehicle-count">0</span></h3>
-          <button class="icon-button" id="add-vehicle" type="button" aria-label="Add vehicle">+</button>
-        </div>
-        <div id="vehicle-list" class="vehicle-list"></div>
-        <div class="editor-foot">
-          <span id="grid-count">0 deck cells</span>
-          <button class="button primary" id="validate-button" type="button">Validate input</button>
-        </div>
-        <p id="validation-message" class="message" aria-live="polite"></p>
-      </aside>
-
-      <section class="panel deck-panel" aria-labelledby="deck-title">
-        <div class="panel-heading deck-heading">
-          <div><p class="eyebrow">02 / SHIP PLAN <span id="deck-dimensions">—</span></p><h2 id="deck-title">Deck layout</h2></div>
-          <label class="view-select">Displayed state
-            <select id="state-view">
-              <option value="editor">Editor</option>
-              <option value="initial">Initial state</option>
-              <option value="final">Final result</option>
-            </select>
-          </label>
-        </div>
-        <div class="placement-toolbar" aria-label="Initial vehicle placement">
-          <div class="placement-heading"><strong>Initial placement</strong><span id="placement-mode">AUTO START</span></div>
-          <p>Select a vehicle, then click an empty deck cell or enter its top-left coordinate. Python checks deck bounds, overlap, and capacity. Manual placement sets the starting state for each trial.</p>
-          <div class="placement-fields">
-            <label>Vehicle<select id="placement-vehicle"></select></label>
-            <label>X<input id="placement-x" type="number" min="0" step="1" value="0"></label>
-            <label>Y<input id="placement-y" type="number" min="0" step="1" value="0"></label>
-            <label class="rotation-label"><input id="placement-rotated" type="checkbox"> Rotate 90°</label>
-          </div>
-          <div class="placement-actions">
-            <button class="button primary" id="place-button" type="button">Place vehicle</button>
-            <button class="button quiet" id="unload-button" type="button">Move outside</button>
-            <button class="button quiet" id="clear-placement-button" type="button">Use automatic start</button>
-          </div>
-          <p id="placement-message" class="message placement-message" aria-live="polite">Algorithm creates the start state automatically until you place a vehicle.</p>
-        </div>
-        <div class="deck-scroll">
-          <div class="deck-wrap">
-            <div id="y-axis" class="axis y-axis" aria-hidden="true"></div>
-            <div>
-              <div id="x-axis" class="axis x-axis" aria-hidden="true"></div>
-              <div id="deck" class="deck" aria-label="Ship deck grid"></div>
-            </div>
-          </div>
-        </div>
-        <div id="vehicle-inspector" class="inspector">Choose a vehicle on the deck or in the outside list to inspect its details.</div>
-        <div class="deck-bottom">
-          <div class="unloaded-block">
-            <div class="unloaded-title">OUTSIDE / UNLOADED <span id="unloaded-count">0</span></div>
-            <div id="unloaded-list" class="unloaded-list"></div>
-          </div>
-          <div class="deck-stats" aria-label="Current deck metrics">
-            <div><span>LOADED</span><strong id="loaded-count">0 / 0</strong></div>
-            <div><span>WEIGHT</span><strong id="weight-metric">0 / 0</strong></div>
-            <div><span>OCCUPIED</span><strong id="area-metric">0 / 0</strong></div>
-            <div><span>OBJECTIVE</span><strong id="objective-metric">—</strong></div>
-          </div>
-        </div>
-      </section>
-
-      <aside class="panel run-panel" aria-labelledby="run-title">
-        <div class="panel-heading">
-          <div><p class="eyebrow">03 / SEARCH</p><h2 id="run-title">Run controls</h2></div>
-          <span class="signal">● READY</span>
-        </div>
-        <label>Algorithm<select id="algorithm-select"></select></label>
-        <div class="algorithm-note" id="algorithm-note">Choose an implemented search method.</div>
-        <div class="run-fields">
-          <label>Objective
-            <select id="objective-select">
-              <option value="fee">Shipping fee</option>
-              <option value="density">Optional bonus · fee / area</option>
-            </select>
-          </label>
-          <label>Seed<input id="seed-input" type="number" value="42" step="1"></label>
-          <label>Trials<input id="trial-count" type="number" value="1" min="1" step="1"></label>
-        </div>
-        <button class="button primary run-button" id="run-button" type="button">Run algorithm <span>↗</span></button>
-        <div id="result-summary" class="result-summary">
-          <p>No computation yet.</p>
-          <small>The result panel shows values returned by the Python implementation.</small>
-        </div>
-        <div class="metric-cards">
-          <div><span>INITIAL OBJECTIVE</span><strong id="initial-objective">—</strong></div>
-          <div><span>IMPROVEMENT</span><strong id="improvement">—</strong></div>
-          <div><span>COMPUTE TIME</span><strong id="compute-time">—</strong></div>
-        </div>
-        <div id="experiment-results" class="experiment-results" aria-live="polite"></div>
-      </aside>
+    <div class="layout-controls">
+      <button id="toggle-config" type="button">Hide config</button>
+      <button id="toggle-result" type="button">Hide result</button>
     </div>
 
-    <footer>
-      <span>COORDINATES: ORIGIN TOP-LEFT · X → RIGHT · Y → DOWN</span>
-      <span>SEARCH ENGINE: PYTHON &nbsp; / &nbsp; VISUAL LAYER: BROWSER</span>
-    </footer>
+    <section id="run-settings" class="run-settings">
+      <h2>Run settings</h2>
+      <div class="fields">
+        <label>Algorithm
+          <select id="algorithm-select" form="run-form">
+            <option value="steepest">Steepest-Ascent Hill Climbing</option>
+            <option value="stochastic">Stochastic Hill Climbing</option>
+            <option value="sideways">Hill Climbing with Sideways Moves</option>
+            <option value="random_restart">Random-Restart Hill Climbing</option>
+            <option value="annealing">Simulated Annealing</option>
+            <option value="genetic">Genetic Algorithm</option>
+          </select>
+        </label>
+        <label>Objective
+          <select id="objective-select" form="run-form">
+            <option value="shipping_fee">Shipping fee</option>
+            <option value="eta">ETA</option>
+          </select>
+        </label>
+        <label>Seed
+          <input id="seed-input" type="number" value="67" step="1" required form="run-form">
+        </label>
+        <label>Trials
+          <input id="trial-count" type="number" value="1" min="1" step="1" required form="run-form">
+        </label>
+      </div>
+      <div id="ga-settings" class="fields ga-settings" hidden>
+        <label>Population size
+          <input id="population-size" type="number" value="30" min="1" step="1" required form="run-form" disabled>
+        </label>
+        <label>Generations
+          <input id="iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
+        </label>
+      </div>
+      <button id="run-button" type="submit" form="run-form">Run</button>
+      <p id="run-error" class="error" role="alert"></p>
+    </section>
+
+    <div class="columns">
+      <form id="run-form">
+        <section class="file-controls">
+          <label>Load JSON
+            <input id="problem-file" type="file" accept=".json,application/json">
+          </label>
+          <button id="save-json" type="button">Save JSON</button>
+        </section>
+
+        <div class="random-controls">
+          <button id="randomize-all" type="button">Random initial state</button>
+          <button id="randomize-grid" type="button">Randomize grid</button>
+          <button id="randomize-vehicles" type="button">Randomize vehicles</button>
+          <button id="randomize-placements" type="button">Randomize placements</button>
+        </div>
+
+        <section>
+          <h2>Ship</h2>
+          <div class="fields">
+            <label>Width
+              <input id="ship-width" type="number" min="1" step="1" required>
+            </label>
+            <label>Length
+              <input id="ship-length" type="number" min="1" step="1" required>
+            </label>
+            <label>Maximum capacity
+              <input id="ship-capacity" type="number" min="0" step="any" required>
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-heading">
+            <h2>Vehicles</h2>
+            <button id="add-vehicle" type="button">Add vehicle</button>
+          </div>
+          <div id="vehicle-list"></div>
+        </section>
+
+      </form>
+
+      <section>
+        <h2>Deck</h2>
+        <p id="deck-size"></p>
+        <p id="deck-message"></p>
+        <div class="deck-scroll">
+          <div id="deck" class="deck"></div>
+        </div>
+        <h3>Outside</h3>
+        <ul id="outside-list"></ul>
+      </section>
+
+      <section>
+        <h2>Result</h2>
+        <label id="trial-picker" hidden>Trial
+          <select id="trial-select"></select>
+        </label>
+        <p id="result-summary">No result yet.</p>
+        <div id="fitness-chart-section" hidden>
+          <h3>Objective by generation</h3>
+          <canvas id="fitness-chart" height="240"></canvas>
+          <p>Solid: maximum · dashed: average</p>
+        </div>
+        <details>
+          <summary>Show selected trial JSON</summary>
+          <pre id="result-json">...</pre>
+        </details>
+      </section>
+    </div>
   </main>
 </body>
 </html>
