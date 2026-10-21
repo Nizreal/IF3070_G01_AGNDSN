@@ -2,25 +2,21 @@ import math
 import random
 from time import perf_counter
 
+from ..algorithms.random_restart import random_restart
+from ..algorithms.simulated_annealing import simulated_annealing
 from ..algorithms.sideways import sideways
 from ..algorithms.steepest import steepest_ascent
 from ..algorithms.stochastic import stochastic
 from ..models import Placement, Ship, State, Vehicle
-from ..problem import bonus_fitness, fitness, grid_from_state, is_valid, random_state
-from ..monitoring.progress import ProgressCallback
-from ..monitoring.trace import serialize_state
+from ..problem import bonus_fitness, fitness, is_valid, random_state
 
 
 ALGORITHMS = {
     "steepest": {"name": "Steepest-Ascent Hill Climbing", "function": steepest_ascent},
     "stochastic": {"name": "Stochastic Hill Climbing", "function": stochastic},
     "sideways": {"name": "Hill Climbing with Sideways Moves", "function": sideways},
-}
-
-PENDING_ALGORITHMS = {
-    "random_restart": "Random-Restart Hill Climbing",
-    "annealing": "Simulated Annealing",
-    "genetic": "Genetic Algorithm",
+    "random_restart": {"name": "Random-Restart Hill Climbing", "function": random_restart},
+    "annealing": {"name": "Simulated Annealing", "function": simulated_annealing},
 }
 
 
@@ -102,8 +98,14 @@ def parse_state(data, vehicles):
     return State(placements)
 
 
-def serialize_grid(state, ship, vehicles):
-    return grid_from_state(state, ship, vehicles)
+def serialize_state(state):
+    placements = {}
+    for vehicle_id, placement in state.placements.items():
+        if placement is None:
+            placements[vehicle_id] = None
+        else:
+            placements[vehicle_id] = {"x": placement.x, "y": placement.y, "rotated": placement.rotated}
+    return {"placements": placements}
 
 
 def problem_metrics(state, ship, vehicles, evaluate):
@@ -126,9 +128,7 @@ def problem_metrics(state, ship, vehicles, evaluate):
     }
 
 
-def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=None, on_progress: ProgressCallback | None = None):
-    if algorithm_id in PENDING_ALGORITHMS:
-        raise NotImplementedError(f"{PENDING_ALGORITHMS[algorithm_id]} implementation is pending.")
+def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=None):
     if algorithm_id not in ALGORITHMS:
         raise ValueError("Select a known algorithm.")
 
@@ -142,13 +142,11 @@ def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=N
         raise ValueError("Initial state is invalid for this ship and vehicle list.")
 
     started = perf_counter()
-    final_state = ALGORITHMS[algorithm_id]["function"](
-        initial_state,
-        ship,
-        vehicles,
-        evaluate=evaluate,
-        on_progress=on_progress,
-    )
+    algorithm = ALGORITHMS[algorithm_id]["function"]
+    if algorithm_id in ("random_restart", "annealing"):
+        final_state = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate)
+    else:
+        final_state = algorithm(initial_state, ship, vehicles, evaluate=evaluate)
     duration_ms = (perf_counter() - started) * 1000
     if not is_valid(final_state, ship, vehicles):
         raise RuntimeError("Algorithm returned a state that failed validation.")
@@ -163,19 +161,11 @@ def run_algorithm(algorithm_id, ship, vehicles, seed, objective, initial_state=N
         "objective": objective,
         "initial_state": serialize_state(initial_state),
         "final_state": serialize_state(final_state),
-        "initial_grid": serialize_grid(initial_state, ship, vehicles),
-        "final_grid": serialize_grid(final_state, ship, vehicles),
-        "trace_available": on_progress is not None,
-        "frames": [],
-        "metrics": [],
         "summary": {
             "initial_objective": initial_metrics["objective"],
             "final_objective": final_metrics["objective"],
             "improvement": final_metrics["objective"] - initial_metrics["objective"],
             "duration_ms": duration_ms,
-            "iterations": None,
-            "termination_reason": "algorithm returned its final state; iteration trace is not exposed",
-            "seed_controls": "initial state only" if algorithm_id == "stochastic" else "initial state",
         },
         "initial_metrics": initial_metrics,
         "final_metrics": final_metrics,

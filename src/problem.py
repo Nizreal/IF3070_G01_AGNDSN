@@ -11,24 +11,24 @@ def footprint(vehicle: Vehicle, rotated: bool) -> tuple[int, int]:
     return vehicle.width, vehicle.length
 
 
-def load_problem(path: str | Path) -> tuple[Ship, dict[str, Vehicle]]:
+def load_problem(path: str | Path) -> tuple[Ship, dict[str, Vehicle]] | None:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    ship = Ship(**data["ship"])
+    ship_data = data["ship"]
+    ship = Ship(width=ship_data["width"], length=ship_data["length"], max_capacity=ship_data["max_capacity"])
 
-    if not isinstance(ship.width, int) or not isinstance(ship.length, int):
-        raise ValueError("Ship dimensions must be positive integers")
     if ship.width <= 0 or ship.length <= 0 or ship.max_capacity < 0:
-        raise ValueError("Ship dimensions must be positive and capacity nonnegative")
+        print("Invalid ship dimensions or capacity.")
+        return None
 
     vehicles: dict[str, Vehicle] = {}
     for item in data["vehicles"]:
         vehicle = Vehicle(**item)
         if vehicle.id in vehicles:
-            raise ValueError(f"Duplicate vehicle ID: {vehicle.id}")
-        if not isinstance(vehicle.width, int) or not isinstance(vehicle.length, int):
-            raise ValueError(f"Invalid dimensions for {vehicle.id}")
-        if vehicle.width <= 0 or vehicle.length <= 0 or vehicle.weight < 0 or vehicle.shipping_fee < 0:
-            raise ValueError(f"Invalid dimensions, weight, or fee for {vehicle.id}")
+            print(f"Duplicate vehicle ID: {vehicle.id}.")
+            return None
+        if vehicle.width < 0 or vehicle.length < 0 or vehicle.weight < 0 or vehicle.shipping_fee < 0:
+            print(f"{vehicle.id}: invalid dimensions, weight, or fee.")
+            return None
         vehicles[vehicle.id] = vehicle
 
     return ship, vehicles
@@ -85,9 +85,14 @@ def bonus_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
 
 def grid_from_state(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> list[list[str | None]]:
     if not is_valid(state, ship, vehicles):
-        raise ValueError("Cannot build a grid from an invalid state")
+        raise ValueError("State invalid")
 
-    grid: list[list[str | None]] = [[None] * ship.width for _ in range(ship.length)]
+    grid: list[list[str | None]] = []
+    for y in range(ship.length):
+        row: list[str | None] = []
+        for x in range(ship.width):
+            row.append(None)
+        grid.append(row)
 
     for vehicle_id, placement in state.placements.items():
         if placement is None:
