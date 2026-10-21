@@ -1,4 +1,4 @@
-from .models import State
+from ..models import State
 
 
 def serialize_state(state: State) -> dict:

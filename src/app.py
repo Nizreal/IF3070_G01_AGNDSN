@@ -5,8 +5,8 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 from .problem import fitness, is_valid, random_state
-from .run_manager import run_manager
-from .web_adapter import (
+from .web.run_manager import run_manager
+from .web.web_adapter import (
     ALGORITHMS,
     PENDING_ALGORITHMS,
     parse_problem,

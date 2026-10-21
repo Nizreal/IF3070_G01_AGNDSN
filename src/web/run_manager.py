@@ -3,7 +3,7 @@ import time
 from collections import OrderedDict
 from uuid import uuid4
 
-from .trace import serialize_event
+from ..monitoring.trace import serialize_event
 
 
 MAX_RUNS = 24
