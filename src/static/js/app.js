@@ -31,6 +31,8 @@ const elements = {
   restartResult: document.getElementById("restart-result"),
   restartIterations: document.getElementById("restart-iterations"),
   resultJson: document.getElementById("result-json"),
+  annealingChartSection: document.getElementById("annealing-chart-section"),
+  annealingChart: document.getElementById("annealing-chart"),
   fitnessChartSection: document.getElementById("fitness-chart-section"),
   fitnessChart: document.getElementById("fitness-chart"),
 };
@@ -194,6 +196,7 @@ function clearResult() {
   elements.runError.textContent = "";
   elements.resultSummary.textContent = "No result yet.";
   elements.resultJson.textContent = "...";
+  elements.annealingChartSection.hidden = true;
   elements.restartResult.hidden = true;
   elements.restartIterations.replaceChildren();
   elements.fitnessChartSection.hidden = true;
@@ -423,6 +426,7 @@ async function runAlgorithm(event) {
   elements.trialSelect.replaceChildren();
   elements.runError.textContent = "";
   elements.runButton.disabled = true;
+  elements.annealingChartSection.hidden = true;
   elements.fitnessChartSection.hidden = true;
   elements.restartResult.hidden = true;
   elements.restartIterations.replaceChildren();
@@ -544,6 +548,9 @@ updateAlgorithmFields();
 loadExample();
 
 function renderDeckAfterLayout() {
+  if (selectedTrial && selectedTrial.annealing) {
+    drawAnnealingChart(selectedTrial.annealing);
+  }
   if (selectedTrial && selectedTrial.genetic) {
     drawFitnessChart(selectedTrial.genetic);
   }
@@ -583,6 +590,10 @@ function showTrial(index) {
       `Population: ${selectedTrial.genetic.population_size}`,
       `Iterations: ${selectedTrial.genetic.iterations}`,
     ] : []),
+    ...(selectedTrial.annealing ? [
+      `Iterations: ${selectedTrial.annealing.iteration_count}`,
+      `Stuck at local optimum: ${selectedTrial.annealing.stuck_count} iterations (${(selectedTrial.annealing.stuck_frequency * 100).toFixed(1)}%)`,
+    ] : []),
     ...(restart ? [`Restarts: ${restart.restart_count} of ${restart.max_restarts}`] : []),
     `File: ${runData.result_file}`,
   ].join("\n");
@@ -597,7 +608,56 @@ function showTrial(index) {
   } else {
     elements.fitnessChartSection.hidden = true;
   }
+  elements.annealingChartSection.hidden = !selectedTrial.annealing;
+  if (selectedTrial.annealing) {
+    drawAnnealingChart(selectedTrial.annealing);
+  }
   renderDeck(selectedTrial.final_state);
+}
+
+function drawAnnealingChart(annealing) {
+  const canvas = elements.annealingChart;
+  const context = canvas.getContext("2d");
+  const width = canvas.clientWidth;
+  const height = 240;
+  const left = 55;
+  const right = 18;
+  const top = 18;
+  const bottom = 48;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  if (width <= 0) return;
+  canvas.width = width;
+  canvas.height = height;
+  context.font = "12px system-ui";
+  context.fillStyle = "#222";
+  context.strokeStyle = "#888";
+  context.beginPath();
+  context.moveTo(left, top);
+  context.lineTo(left, height - bottom);
+  context.lineTo(width - right, height - bottom);
+  context.stroke();
+  context.fillText("1", 32, top + 4);
+  context.fillText("0", 32, height - bottom + 4);
+  context.fillText("1", left - 3, height - bottom + 16);
+  context.textAlign = "right";
+  context.fillText(String(annealing.iteration_count), width - right, height - bottom + 16);
+  context.textAlign = "center";
+  context.fillText("Iteration", left + plotWidth / 2, height - 4);
+  context.save();
+  context.translate(12, top + plotHeight / 2);
+  context.rotate(-Math.PI / 2);
+  context.fillText("exp(ΔE/T)", 0, 0);
+  context.restore();
+
+  context.fillStyle = "#386641";
+  annealing.acceptance_probability_history.forEach((value, index) => {
+    if (value === null) return;
+    const x = left + index / Math.max(annealing.iteration_count - 1, 1) * plotWidth;
+    const y = height - bottom - value * plotHeight;
+    context.fillRect(x - 2, y - 2, 4, 4);
+  });
 }
 
 function drawFitnessChart(genetic) {

@@ -63,6 +63,7 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
 
     ga_result = None
     restart_result = None
+    annealing_result = None
     if algorithm_id == "genetic":
         ga_result = genetic_algorithm(ship, vehicles, population_size, iterations, random.Random(seed), evaluate, initial_state)
         initial_state = ga_result["initial_state"]
@@ -79,7 +80,8 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
             restart_result = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate, max_restarts=max_restarts)
             final_state = restart_result["best state"]
         elif algorithm_id == "annealing":
-            final_state = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate)
+            annealing_result = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate)
+            final_state = annealing_result["best_state"]
         else:
             final_state = algorithm(initial_state, ship, vehicles, evaluate=evaluate)
         duration_ms = (perf_counter() - started) * 1000
@@ -120,6 +122,17 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
             "restart_count": restart_result["restart_count"],
             "iteration_per_search": restart_result["iteration_per_search"],
             "max_restarts": restart_result["max restarts"],
+        }
+
+    if annealing_result is not None:
+        iteration_count = len(annealing_result["acceptance_probability_history"])
+        stuck_iterations = annealing_result["stuck_iterations"]
+        result["annealing"] = {
+            "iteration_count": iteration_count,
+            "acceptance_probability_history": annealing_result["acceptance_probability_history"],
+            "stuck_iterations": stuck_iterations,
+            "stuck_count": len(stuck_iterations),
+            "stuck_frequency": len(stuck_iterations) / iteration_count if iteration_count else 0,
         }
 
     return result

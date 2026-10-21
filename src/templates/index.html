@@ -122,6 +122,11 @@
           <h3>Iterations per restart</h3>
           <ol id="restart-iterations"></ol>
         </div>
+        <div id="annealing-chart-section" hidden>
+          <h3>Acceptance probability by iteration</h3>
+          <canvas id="annealing-chart" height="240"></canvas>
+          <p>exp(ΔE/T) for non-improving neighbors; gaps mean an improving neighbor or no neighbor.</p>
+        </div>
         <div id="fitness-chart-section" hidden>
           <h3>Objective by generation</h3>
           <canvas id="fitness-chart" height="240"></canvas>
