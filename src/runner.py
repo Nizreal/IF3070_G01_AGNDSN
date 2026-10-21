@@ -50,7 +50,7 @@ def problem_metrics(state: State, ship: Ship, vehicles: dict[str, Vehicle], eval
     }
 
 
-def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], seed: int, objective: str, initial_state: State | None = None, population_size: int = 30, iterations: int = 100) -> dict:
+def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], seed: int, objective: str, initial_state: State | None = None, population_size: int = 30, iterations: int = 100, max_restarts: int = 100) -> dict:
     if algorithm_id not in ALGORITHMS:
         raise ValueError("Select a known algorithm.")
 
@@ -62,6 +62,7 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
         raise ValueError("Objective must be shipping_fee or eta.")
 
     ga_result = None
+    restart_result = None
     if algorithm_id == "genetic":
         ga_result = genetic_algorithm(ship, vehicles, population_size, iterations, random.Random(seed), evaluate, initial_state)
         initial_state = ga_result["initial_state"]
@@ -73,7 +74,11 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
 
         started = perf_counter()
         algorithm = ALGORITHMS[algorithm_id]["function"]
-        if algorithm_id in ("random_restart", "annealing"):
+        
+        if algorithm_id == "random_restart":
+            restart_result = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate, max_restarts=max_restarts)
+            final_state = restart_result["best state"]
+        elif algorithm_id == "annealing":
             final_state = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate)
         else:
             final_state = algorithm(initial_state, ship, vehicles, evaluate=evaluate)
@@ -108,6 +113,13 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
             "iterations": ga_result["iterations"],
             "max_fitness_history": ga_result["max_fitness_history"],
             "average_fitness_history": ga_result["average_fitness_history"],
+        }
+        
+    if restart_result is not None:
+        result["random_restart"] = {
+            "restart_count": restart_result["restart_count"],
+            "iteration_per_search": restart_result["iteration_per_search"],
+            "max_restarts": restart_result["max restarts"],
         }
 
     return result
