@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from .models import State
+from ..models import State
 
 
 ProgressCallback = Callable[[dict], None]

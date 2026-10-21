@@ -1,12 +1,12 @@
 from ..models import State, Ship, Vehicle
 from ..problem import fitness
 from ..neighbors import iter_neighbors
-from ..progress import ProgressCallback, emit_progress
+from ..monitoring.progress import ProgressCallback, emit_progress
 
 
 def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=fitness, on_progress: ProgressCallback | None = None) -> State:
     current = initial_state
-    sideways_max_iterate = 50
+    sideways_max_iterate = 10000
     iterate_count = 0
     iteration = 0
     consecutive_sideways_moves = 0

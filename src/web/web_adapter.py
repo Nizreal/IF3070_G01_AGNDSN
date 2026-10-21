@@ -2,13 +2,13 @@ import math
 import random
 from time import perf_counter
 
-from .algorithms.sideways import sideways
-from .algorithms.steepest import steepest_ascent
-from .algorithms.stochastic import stochastic
-from .models import Placement, Ship, State, Vehicle
-from .problem import bonus_fitness, fitness, grid_from_state, is_valid, random_state
-from .progress import ProgressCallback
-from .trace import serialize_state
+from ..algorithms.sideways import sideways
+from ..algorithms.steepest import steepest_ascent
+from ..algorithms.stochastic import stochastic
+from ..models import Placement, Ship, State, Vehicle
+from ..problem import bonus_fitness, fitness, grid_from_state, is_valid, random_state
+from ..monitoring.progress import ProgressCallback
+from ..monitoring.trace import serialize_state
 
 
 ALGORITHMS = {

@@ -1,5 +1,6 @@
 import argparse
 import random
+from pathlib import Path
 
 from .models import Ship, State, Vehicle, Placement
 from .neighbors import random_neighbor
@@ -84,7 +85,8 @@ def run_random(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, see
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run a terminal experiment or debug the shared model.")
     parser.add_argument("--algorithm", choices=("random", "stochastic", "sideways", "simulated_annealing", "genetic", "random_restart"))
-    parser.add_argument("--input", default="data/example.json", help="Path to the problem JSON file")
+    default_input = Path(__file__).resolve().parent.parent / "data" / "example.json"
+    parser.add_argument("--input", default=str(default_input), help="Path to the problem JSON file")
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--objective", choices=("fee", "density"), default="fee")
     parser.add_argument("--fixed-start", action="store_true")
@@ -95,7 +97,7 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
-    if args.algorithm in ("genetic"):
+    if args.algorithm == "genetic":
         print(f"{args.algorithm.upper()} is not implemented yet.")
         return
 
