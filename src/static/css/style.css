@@ -206,13 +206,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   white-space: pre-line;
 }
 
-#fitness-chart {
+#fitness-chart,
+#annealing-chart {
   display: block;
   width: 100%;
   height: 240px;
 }
 
-#fitness-chart-section[hidden] {
+#fitness-chart-section[hidden],
+#annealing-chart-section[hidden] {
   display: none;
 }
 
