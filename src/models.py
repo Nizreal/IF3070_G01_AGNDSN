@@ -10,20 +10,17 @@ class Vehicle:
     shipping_fee: float
     eta: int
 
-
 @dataclass
 class Ship:
     width: int
     length: int
     max_capacity: float
 
-
 @dataclass(frozen=True)
 class Placement:
     x: int
     y: int
     rotated: bool
-
 
 @dataclass
 class State:

@@ -1,614 +1,639 @@
-const elementIds = [
-  "status", "status-light", "ship-width", "ship-length", "ship-capacity", "vehicle-list", "vehicle-count", "grid-count",
-  "validation-message", "deck-dimensions", "deck", "x-axis", "y-axis", "unloaded-count", "unloaded-list", "loaded-count",
-  "weight-metric", "area-metric", "objective-metric", "vehicle-inspector", "algorithm-select", "algorithm-note", "objective-select",
-  "seed-input", "run-button", "experiment-button", "validate-button", "result-summary", "initial-objective", "improvement", "compute-time",
-  "iteration-count", "state-view", "trace-status", "trace-explanation", "experiment-results", "live-progress", "run-live-state",
-  "run-live-elapsed", "run-progress-bar", "current-iteration", "current-fitness", "best-fitness", "first-button", "previous-button",
-  "play-button", "next-button", "last-button", "timeline", "speed-select", "frame-counter", "fitness-chart", "event-log", "trace-count",
-  "placement-vehicle", "placement-x", "placement-y", "placement-rotated", "place-button", "unload-button", "clear-placement-button",
-  "placement-message", "placement-mode",
-];
-const elements = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
+const elements = {
+  status: document.getElementById("status"),
+  columns: document.querySelector(".columns"),
+  toggleConfig: document.getElementById("toggle-config"),
+  toggleResult: document.getElementById("toggle-result"),
+  form: document.getElementById("run-form"),
+  runSettings: document.getElementById("run-settings"),
+  problemFile: document.getElementById("problem-file"),
+  shipWidth: document.getElementById("ship-width"),
+  shipLength: document.getElementById("ship-length"),
+  shipCapacity: document.getElementById("ship-capacity"),
+  vehicleList: document.getElementById("vehicle-list"),
+  algorithm: document.getElementById("algorithm-select"),
+  gaSettings: document.getElementById("ga-settings"),
+  populationSize: document.getElementById("population-size"),
+  iterations: document.getElementById("iterations"),
+  objective: document.getElementById("objective-select"),
+  seed: document.getElementById("seed-input"),
+  trials: document.getElementById("trial-count"),
+  runButton: document.getElementById("run-button"),
+  runError: document.getElementById("run-error"),
+  deckSize: document.getElementById("deck-size"),
+  deckMessage: document.getElementById("deck-message"),
+  deck: document.getElementById("deck"),
+  outsideList: document.getElementById("outside-list"),
+  trialPicker: document.getElementById("trial-picker"),
+  trialSelect: document.getElementById("trial-select"),
+  resultSummary: document.getElementById("result-summary"),
+  resultJson: document.getElementById("result-json"),
+  fitnessChartSection: document.getElementById("fitness-chart-section"),
+  fitnessChart: document.getElementById("fitness-chart"),
+};
 
-let result = null;
-let selectedVehicle = null;
-let algorithms = [];
-let activeRunId = null;
-let recordedEvents = [];
-let currentFrameIndex = 0;
-let playbackTimer = null;
-let followingLiveRun = false;
-let editorState = { placements: {} };
-let editorObjective = null;
-let hasCustomInitialState = false;
-let placementPending = false;
+const randomSettings = {
+  minShipSize: 4,
+  maxShipSize: 10,
+  minVehicles: 3,
+  maxVehicles: 8,
+  minVehicleSize: 1,
+  maxVehicleSize: 2,
+  minWeight: 2,
+  maxWeight: 4,
+  minFee: 20,
+  maxFee: 60,
+  minEta: 1,
+  maxEta: 3,
+};
 
-function setStatus(message, error = false) {
-  elements.status.textContent = message.toUpperCase();
-  elements["status-light"].style.background = error ? "var(--rust)" : "var(--forest)";
-}
+let runData = null;
+let selectedTrial = null;
+let runTimer = null;
+let runStartedAt = 0;
 
 function getProblem() {
+  const vehicles = [];
+
+  for (const row of elements.vehicleList.querySelectorAll(".vehicle-row")) {
+    const vehicle = {};
+    for (const input of row.querySelectorAll("[data-field]")) {
+      const value = input.value.trim();
+      vehicle[input.dataset.field] = input.type === "number" ? Number(value) : value;
+    }
+    vehicles.push(vehicle);
+  }
+
   return {
     ship: {
-      width: Number(elements["ship-width"].value),
-      length: Number(elements["ship-length"].value),
-      max_capacity: Number(elements["ship-capacity"].value),
+      width: Number(elements.shipWidth.value),
+      length: Number(elements.shipLength.value),
+      max_capacity: Number(elements.shipCapacity.value),
     },
-    vehicles: [...elements["vehicle-list"].querySelectorAll(".vehicle-card")].map((card) => {
-      const value = (name) => card.querySelector(`[data-field="${name}"]`).value;
-      return {
-        id: value("id").trim(), width: Number(value("width")), length: Number(value("length")),
-        weight: Number(value("weight")), shipping_fee: Number(value("shipping_fee")), eta: Number(value("eta")),
-      };
-    }),
+    vehicles,
   };
 }
 
-function addVehicle(vehicle = { id: "", width: 1, length: 1, weight: 0, shipping_fee: 0, eta: 0 }) {
-  const card = document.createElement("article");
-  card.className = "vehicle-card";
-  card.innerHTML = `<div class="vehicle-card-top"><strong>VEHICLE</strong><button class="remove-vehicle" type="button" aria-label="Remove vehicle">REMOVE ×</button></div><div class="vehicle-card-fields">${[
-    ["id", "ID", "text"], ["width", "WIDTH", "number"], ["length", "LENGTH", "number"],
-    ["weight", "WEIGHT", "number"], ["shipping_fee", "FEE", "number"], ["eta", "ETA", "number"],
-  ].map(([name, label, type]) => `<label>${label}<input data-field="${name}" type="${type}" ${type === "number" ? 'min="0" step="any"' : ""} value=""></label>`).join("")}</div>`;
-  for (const [name, value] of Object.entries(vehicle)) card.querySelector(`[data-field="${name}"]`).value = value;
-  elements["vehicle-list"].append(card);
-  updateCounts();
-}
+function getInitialState() {
+  const placements = {};
 
-function fillEditor(data) {
-  elements["ship-width"].value = data.ship.width;
-  elements["ship-length"].value = data.ship.length;
-  elements["ship-capacity"].value = data.ship.max_capacity;
-  elements["vehicle-list"].replaceChildren();
-  data.vehicles.forEach(addVehicle);
-  editorState = { placements: Object.fromEntries(data.vehicles.map((vehicle) => [vehicle.id, null])) };
-  editorObjective = null;
-  hasCustomInitialState = false;
-  clearTrace();
-  elements["experiment-results"].replaceChildren();
-  elements["result-summary"].innerHTML = "<p>Configuration loaded.</p><small>Validate the input, then run an available algorithm.</small>";
-  elements["validation-message"].textContent = "";
-  updateCounts();
-  updatePlacementOptions();
-  setPlacementMessage("Algorithm creates the start state automatically until you place a vehicle.");
-  renderDeck();
-}
+  for (const row of elements.vehicleList.querySelectorAll(".vehicle-row")) {
+    const vehicleId = row.querySelector('[data-field="id"]').value.trim();
+    if (!vehicleId) continue;
 
-function updateCounts() {
-  const data = getProblem();
-  elements["vehicle-count"].textContent = data.vehicles.length;
-  elements["grid-count"].textContent = `${data.ship.width * data.ship.length || 0} deck cells`;
-}
-
-function candidateWithPlacement(state, vehicleId, placement) {
-  return { placements: { ...state.placements, [vehicleId]: placement } };
-}
-
-function setPlacementMessage(message, error = false) {
-  elements["placement-message"].textContent = message;
-  elements["placement-message"].className = error ? "message placement-message error" : "message placement-message";
-  elements["placement-mode"].textContent = hasCustomInitialState ? "CUSTOM START" : "AUTO START";
-}
-
-function updatePlacementOptions() {
-  const selected = elements["placement-vehicle"].value;
-  const vehicles = getProblem().vehicles;
-  elements["placement-vehicle"].replaceChildren(...vehicles.map((vehicle) => {
-    const option = document.createElement("option");
-    option.value = vehicle.id;
-    option.textContent = `${vehicle.id || "Unnamed"} · ${vehicle.width} × ${vehicle.length}`;
-    return option;
-  }));
-  if (vehicles.some((vehicle) => vehicle.id === selected)) elements["placement-vehicle"].value = selected;
-  elements["place-button"].disabled = !vehicles.length || placementPending || Boolean(activeRunId);
-  elements["unload-button"].disabled = !vehicles.length || placementPending || Boolean(activeRunId);
-}
-
-function configurationChanged() {
-  invalidateResult();
-  const vehicles = getProblem().vehicles;
-  editorState = { placements: Object.fromEntries(vehicles.map((vehicle) => [vehicle.id, null])) };
-  editorObjective = null;
-  hasCustomInitialState = false;
-  elements["state-view"].value = "editor";
-  setPlacementMessage("Configuration changed. Place vehicles again, or use an automatic start.");
-  updateCounts();
-  updatePlacementOptions();
-  renderDeck();
-}
-
-async function applyPlacement(placement) {
-  if (placementPending || activeRunId) return;
-  const vehicleId = elements["placement-vehicle"].value;
-  if (!vehicleId) { setPlacementMessage("Select a vehicle first.", true); return; }
-  const candidate = candidateWithPlacement(editorState, vehicleId, placement);
-  placementPending = true;
-  setInputsDisabled(true);
-  setPlacementMessage("Checking placement with Python…");
-  try {
-    const data = await requestJson("/api/validate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...getProblem(), state: candidate }),
-    });
-    editorState = data.state;
-    editorObjective = data.objective;
-    hasCustomInitialState = true;
-    invalidateResult();
-    elements["state-view"].value = "editor";
-    setPlacementMessage(placement === null
-      ? `${vehicleId} moved outside the deck. This validated state will start the next run.`
-      : `${vehicleId} placed at (${placement.x}, ${placement.y})${placement.rotated ? " with rotation" : ""}. This validated state will start the next run.`);
-    renderDeck();
-  } catch (error) {
-    setPlacementMessage(error.message, true);
-  } finally {
-    placementPending = false;
-    setInputsDisabled(false);
-    updatePlacementOptions();
+    if (row.querySelector(".outside-vehicle").checked) {
+      placements[vehicleId] = null;
+    } else {
+      placements[vehicleId] = {
+        x: Number(row.querySelector(".placement-x").value),
+        y: Number(row.querySelector(".placement-y").value),
+        rotated: row.querySelector(".placement-rotated").checked,
+      };
+    }
   }
+
+  return { placements };
 }
 
-function placeSelectedVehicle(x = Number(elements["placement-x"].value), y = Number(elements["placement-y"].value)) {
-  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0) {
-    setPlacementMessage("X and Y must be nonnegative whole numbers.", true);
+function randomInteger(minimum, maximum) {
+  return Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
+}
+
+function addVehicle(vehicle = {}) {
+  const fields = [
+    ["id", "ID", "text"],
+    ["width", "Width", "number"],
+    ["length", "Length", "number"],
+    ["weight", "Weight", "number"],
+    ["shipping_fee", "Fee", "number"],
+    ["eta", "ETA", "number"],
+  ];
+  const row = document.createElement("div");
+  row.className = "vehicle-row";
+
+  for (const [name, labelText, type] of fields) {
+    const label = document.createElement("label");
+    label.textContent = labelText;
+
+    const input = document.createElement("input");
+    input.type = type;
+    input.dataset.field = name;
+    input.required = true;
+
+    if (type === "number") {
+      input.min = name === "width" || name === "length" ? "1" : "0";
+      input.step = name === "width" || name === "length" || name === "eta" ? "1" : "any";
+    }
+
+    if (vehicle[name] !== undefined) input.value = vehicle[name];
+    label.append(input);
+    row.append(label);
+  }
+
+  const placementFields = document.createElement("div");
+  placementFields.className = "placement-fields";
+
+  for (const coordinate of ["x", "y"]) {
+    const label = document.createElement("label");
+    label.textContent = coordinate.toUpperCase();
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.required = true;
+    input.className = `placement-${coordinate}`;
+    label.append(input);
+    placementFields.append(label);
+  }
+
+  const placementOptions = document.createElement("div");
+  placementOptions.className = "placement-options";
+
+  const rotatedLabel = document.createElement("label");
+  const rotatedInput = document.createElement("input");
+  rotatedInput.type = "checkbox";
+  rotatedInput.className = "placement-rotated";
+  rotatedLabel.append(rotatedInput, " Rotate");
+
+  const outsideLabel = document.createElement("label");
+  const outsideInput = document.createElement("input");
+  outsideInput.type = "checkbox";
+  outsideInput.className = "outside-vehicle";
+  outsideInput.checked = true;
+  outsideLabel.append(outsideInput, " Outside");
+
+  placementOptions.append(rotatedLabel, outsideLabel);
+  placementFields.append(placementOptions);
+  row.append(placementFields);
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.textContent = "Remove";
+  removeButton.className = "remove-vehicle";
+  row.append(removeButton);
+  elements.vehicleList.append(row);
+  updatePlacementInputs(row);
+}
+
+function updatePlacementInputs(row) {
+  const outside = row.querySelector(".outside-vehicle").checked;
+  row.querySelector(".placement-x").disabled = outside;
+  row.querySelector(".placement-y").disabled = outside;
+  row.querySelector(".placement-rotated").disabled = outside;
+}
+
+function clearResult() {
+  runData = null;
+  selectedTrial = null;
+  elements.trialPicker.hidden = true;
+  elements.trialSelect.replaceChildren();
+  elements.runError.textContent = "";
+  elements.resultSummary.textContent = "No result yet.";
+  elements.resultJson.textContent = "...";
+  elements.fitnessChartSection.hidden = true;
+  renderDeck(getInitialState());
+}
+
+function updateAlgorithmFields() {
+  const isGenetic = elements.algorithm.value === "genetic";
+  elements.gaSettings.hidden = !isGenetic;
+  elements.populationSize.disabled = !isGenetic;
+  elements.iterations.disabled = !isGenetic;
+}
+
+function fillForm(problem) {
+  if (!problem || !problem.ship || !Array.isArray(problem.vehicles)) {
+    throw new Error("JSON must contain ship and vehicles.");
+  }
+
+  elements.shipWidth.value = problem.ship.width;
+  elements.shipLength.value = problem.ship.length;
+  elements.shipCapacity.value = problem.ship.max_capacity;
+  elements.vehicleList.replaceChildren();
+
+  for (const vehicle of problem.vehicles) {
+    addVehicle(vehicle);
+    const row = elements.vehicleList.lastElementChild;
+    const placement = problem.initial_state?.placements?.[vehicle.id];
+    if (placement !== undefined) setPlacement(row, placement);
+  }
+
+  clearResult();
+}
+
+function renderDeck(state = null) {
+  const problem = getProblem();
+  const width = problem.ship.width;
+  const length = problem.ship.length;
+
+  elements.deck.replaceChildren();
+  elements.outsideList.replaceChildren();
+  elements.deckSize.textContent = "";
+  elements.deckMessage.hidden = false;
+  elements.deck.hidden = true;
+
+  if (!Number.isInteger(width) || !Number.isInteger(length) || width < 1 || length < 1) {
+    elements.deckMessage.textContent = "Enter a valid deck size.";
     return;
   }
-  elements["placement-x"].value = x;
-  elements["placement-y"].value = y;
-  applyPlacement({ x, y, rotated: elements["placement-rotated"].checked });
-}
 
-function resetPlacement() {
-  if (placementPending || activeRunId) return;
-  editorState = { placements: Object.fromEntries(getProblem().vehicles.map((vehicle) => [vehicle.id, null])) };
-  editorObjective = null;
-  hasCustomInitialState = false;
-  invalidateResult();
-  elements["state-view"].value = "editor";
-  setPlacementMessage("Automatic start restored. The algorithm will create its initial state from the selected seed.");
-  renderDeck();
-}
+  const availableWidth = elements.deck.parentElement.clientWidth;
+  const availableHeight = window.innerHeight * 0.65;
+  const widthCellSize = Math.floor((availableWidth - width * 2 - 2) / width);
+  const heightCellSize = Math.floor((availableHeight - length * 2 - 2) / length);
+  const cellSize = Math.max(12, Math.min(56, widthCellSize, heightCellSize));
 
-function clearTrace() {
-  stopPlayback();
-  result = null;
-  activeRunId = null;
-  recordedEvents = [];
-  currentFrameIndex = 0;
-  followingLiveRun = false;
-  elements["state-view"].value = "editor";
-  elements["trace-status"].textContent = "NO TRACE";
-  elements["trace-explanation"].textContent = "Run an implemented algorithm to record actual search states for playback.";
-  elements["trace-count"].textContent = "0";
-  elements["event-log"].replaceChildren();
-  elements["fitness-chart"].replaceChildren();
-  elements["timeline"].value = 0;
-  elements["timeline"].max = 0;
-  elements["frame-counter"].textContent = "—";
-  elements["run-live-state"].textContent = "Ready";
-  elements["run-live-elapsed"].textContent = "0 ms";
-  elements["run-progress-bar"].classList.remove("active");
-  for (const id of ["current-iteration", "current-fitness", "best-fitness", "initial-objective", "improvement", "compute-time"]) elements[id].textContent = "—";
-  elements["iteration-count"].textContent = "—";
-  elements["play-button"].textContent = "Play";
-  updatePlaybackControls();
-}
+  elements.deck.style.gridTemplateColumns = `repeat(${width}, ${cellSize}px)`;
+  elements.deck.style.gridTemplateRows = `repeat(${length}, ${cellSize}px)`;
+  elements.deckSize.textContent = `${width} × ${length}`;
 
-function invalidateResult() {
-  if (!result && !recordedEvents.length) return;
-  clearTrace();
-  elements["result-summary"].innerHTML = "<p>Configuration changed.</p><small>Run the algorithm again to compute a result for this input.</small>";
-  elements["experiment-results"].replaceChildren();
-  renderDeck();
-}
-
-function colorFor(id) {
-  let hash = 0;
-  for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  const palette = ["#315b46", "#40566d", "#a45540", "#8c7540", "#64735b", "#635d73"];
-  return palette[hash % palette.length];
-}
-
-function selectedEvent() { return recordedEvents[currentFrameIndex] || null; }
-
-function renderDeck() {
-  const data = getProblem();
-  if (!Number.isInteger(data.ship.width) || !Number.isInteger(data.ship.length) || data.ship.width < 1 || data.ship.length < 1) return;
-  const viewportWidth = document.querySelector(".deck-scroll").clientWidth || window.innerWidth;
-  const availableWidth = viewportWidth - 68;
-  const cellSize = Math.max(28, Math.min(88, Math.floor((availableWidth - 4 - (data.ship.width - 1) * 2) / data.ship.width)));
-  const deck = elements.deck;
-  deck.replaceChildren();
-  deck.style.setProperty("--deck-width", data.ship.width);
-  deck.style.setProperty("--deck-length", data.ship.length);
-  deck.style.setProperty("--cell-size", `${cellSize}px`);
-  deck.style.width = `${data.ship.width * cellSize + (data.ship.width - 1) * 2 + 4}px`;
-  deck.style.height = `${data.ship.length * cellSize + (data.ship.length - 1) * 2 + 4}px`;
-  elements["deck-dimensions"].textContent = `${data.ship.width} × ${data.ship.length}`;
-  elements["x-axis"].replaceChildren(...Array.from({ length: data.ship.width }, (_, x) => { const label = document.createElement("span"); label.textContent = x; return label; }));
-  elements["y-axis"].replaceChildren(...Array.from({ length: data.ship.length }, (_, y) => { const label = document.createElement("span"); label.textContent = y; return label; }));
-
-  const view = elements["state-view"].value;
-  const traceEvent = view === "trace" ? selectedEvent() : null;
-  const state = traceEvent?.state || (view === "editor" ? editorState : view === "initial" && result ? result.initial_state : view === "final" && result ? result.final_state : null);
-  const placements = state?.placements ?? Object.fromEntries(data.vehicles.map((vehicle) => [vehicle.id, null]));
-  const byId = new Map(data.vehicles.map((vehicle) => [vehicle.id, vehicle]));
-  const loaded = [];
-  const unloaded = [];
-  for (const [id, placement] of Object.entries(placements)) {
-    const vehicle = byId.get(id);
-    if (!vehicle) continue;
-    if (placement === null) { unloaded.push(vehicle); continue; }
-    loaded.push(vehicle);
-    const block = document.createElement("button");
-    block.type = "button";
-    block.className = "vehicle-block";
-    block.style.setProperty("--vehicle-color", colorFor(id));
-    const width = placement.rotated ? vehicle.length : vehicle.width;
-    const length = placement.rotated ? vehicle.width : vehicle.length;
-    block.style.gridColumn = `${placement.x + 1} / span ${width}`;
-    block.style.gridRow = `${placement.y + 1} / span ${length}`;
-    block.setAttribute("aria-label", `${id}, ${width} by ${length}, at ${placement.x}, ${placement.y}`);
-    block.innerHTML = `<strong>${escapeHtml(id)}</strong><small>${placement.rotated ? "↻ ROT" : "0°"}</small>`;
-    block.addEventListener("click", (event) => {
-      event.stopPropagation();
-      inspectVehicle(vehicle, placement);
-      if (view === "editor") {
-        elements["placement-vehicle"].value = id;
-        elements["placement-x"].value = placement.x;
-        elements["placement-y"].value = placement.y;
-        elements["placement-rotated"].checked = placement.rotated;
-      }
-    });
-    deck.append(block);
+  for (let y = 0; y < length; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const cell = document.createElement("div");
+      cell.className = "deck-cell";
+      elements.deck.append(cell);
+    }
   }
-  elements["unloaded-list"].replaceChildren(...unloaded.map((vehicle) => {
-    const chip = document.createElement("button");
-    chip.type = "button"; chip.className = "unloaded-chip"; chip.textContent = vehicle.id;
-    chip.addEventListener("click", () => {
-      inspectVehicle(vehicle, null);
-      if (view === "editor") elements["placement-vehicle"].value = vehicle.id;
+
+  if (state === null) {
+    elements.deckMessage.hidden = true;
+    elements.deck.hidden = false;
+    return;
+  }
+
+  const vehicles = new Map(problem.vehicles.map((vehicle) => [vehicle.id, vehicle]));
+  const colors = ["#cfe2d2", "#dce0f0", "#f0dfcf", "#eee7bd", "#d7e5e8", "#ead8e3"];
+  let colorIndex = 0;
+
+  for (const [vehicleId, placement] of Object.entries(state.placements)) {
+    const vehicle = vehicles.get(vehicleId);
+    if (placement === null) {
+      const listItem = document.createElement("li");
+      listItem.textContent = vehicleId;
+      elements.outsideList.append(listItem);
+      continue;
+    }
+    if (vehicle === undefined) continue;
+
+    const vehicleBlock = document.createElement("div");
+    vehicleBlock.className = "vehicle-block";
+    vehicleBlock.textContent = vehicleId;
+    vehicleBlock.style.gridColumn = `${placement.x + 1} / span ${placement.rotated ? vehicle.length : vehicle.width}`;
+    vehicleBlock.style.gridRow = `${placement.y + 1} / span ${placement.rotated ? vehicle.width : vehicle.length}`;
+    vehicleBlock.style.backgroundColor = colors[colorIndex % colors.length];
+    colorIndex += 1;
+    elements.deck.append(vehicleBlock);
+  }
+
+  elements.deckMessage.hidden = true;
+  elements.deck.hidden = false;
+}
+
+function randomizeGrid() {
+  elements.shipWidth.value = randomInteger(randomSettings.minShipSize, randomSettings.maxShipSize);
+  elements.shipLength.value = randomInteger(randomSettings.minShipSize, randomSettings.maxShipSize);
+
+  for (const row of elements.vehicleList.querySelectorAll(".vehicle-row")) {
+    setPlacement(row, null);
+  }
+
+  clearResult();
+}
+
+function randomizeVehicles() {
+  const vehicleCount = randomInteger(randomSettings.minVehicles, randomSettings.maxVehicles);
+  elements.vehicleList.replaceChildren();
+
+  for (let index = 1; index <= vehicleCount; index += 1) {
+    addVehicle({
+      id: `V${index}`,
+      width: randomInteger(randomSettings.minVehicleSize, randomSettings.maxVehicleSize),
+      length: randomInteger(randomSettings.minVehicleSize, randomSettings.maxVehicleSize),
+      weight: randomInteger(randomSettings.minWeight, randomSettings.maxWeight),
+      shipping_fee: randomInteger(randomSettings.minFee, randomSettings.maxFee),
+      eta: randomInteger(randomSettings.minEta, randomSettings.maxEta),
     });
-    return chip;
-  }));
-  elements["unloaded-count"].textContent = unloaded.length;
-  elements["loaded-count"].textContent = `${loaded.length} / ${data.vehicles.length}`;
-  const loadedWeight = loaded.reduce((sum, vehicle) => sum + vehicle.weight, 0);
-  const occupied = loaded.reduce((sum, vehicle) => sum + vehicle.width * vehicle.length, 0);
-  elements["weight-metric"].textContent = `${loadedWeight} / ${data.ship.max_capacity}`;
-  elements["area-metric"].textContent = `${occupied} / ${data.ship.width * data.ship.length}`;
-  const objective = traceEvent ? traceEvent.current_fitness : view === "editor"
-    ? (elements["objective-select"].value === "fee" ? editorObjective : null)
-    : result ? (view === "initial" ? result.summary.initial_objective : result.summary.final_objective) : null;
-  elements["objective-metric"].textContent = objective === null ? "—" : formatNumber(objective);
-  if (selectedVehicle && byId.has(selectedVehicle)) inspectVehicle(byId.get(selectedVehicle), placements[selectedVehicle]);
+  }
+
+  clearResult();
 }
 
-function inspectVehicle(vehicle, placement) {
-  selectedVehicle = vehicle.id;
-  const location = placement ? `aboard at (${placement.x}, ${placement.y})${placement.rotated ? " · rotated" : ""}` : "outside / unloaded";
-  elements["vehicle-inspector"].textContent = `${vehicle.id} · ${vehicle.width} × ${vehicle.length} · ${vehicle.weight} weight · fee ${vehicle.shipping_fee} · ETA ${vehicle.eta} · ${location}`;
+function setPlacement(row, placement) {
+  const outside = placement === null;
+  row.querySelector(".outside-vehicle").checked = outside;
+
+  if (!outside) {
+    row.querySelector(".placement-x").value = placement.x;
+    row.querySelector(".placement-y").value = placement.y;
+    row.querySelector(".placement-rotated").checked = placement.rotated;
+  }
+
+  updatePlacementInputs(row);
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+async function randomizePlacements() {
+  elements.runError.textContent = "";
+
+  try {
+    const result = await requestJson("/api/random-placements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(getProblem()),
+    });
+
+    for (const row of elements.vehicleList.querySelectorAll(".vehicle-row")) {
+      const vehicleId = row.querySelector('[data-field="id"]').value.trim();
+      setPlacement(row, result.placements[vehicleId]);
+    }
+
+    clearResult();
+  } catch (error) {
+    elements.runError.textContent = error.message;
+  }
 }
 
-function formatNumber(value) {
-  return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+async function randomizeInitialState() {
+  randomizeGrid();
+  randomizeVehicles();
+  await randomizePlacements();
 }
 
-async function requestJson(url, options) {
+async function requestJson(url, options = {}) {
   const response = await fetch(url, options);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error || "Request failed.");
-  return body;
-}
+  const data = await response.json();
 
-function setInputsDisabled(disabled) {
-  for (const id of ["ship-width", "ship-length", "ship-capacity", "algorithm-select", "objective-select", "seed-input", "experiment-button", "validate-button"]) elements[id].disabled = disabled;
-  document.getElementById("add-vehicle").disabled = disabled;
-  for (const input of elements["vehicle-list"].querySelectorAll("input, button")) input.disabled = disabled;
-  document.getElementById("load-example").disabled = disabled;
-  elements["run-button"].disabled = disabled;
-  document.getElementById("import-file").disabled = disabled;
-  for (const id of ["placement-vehicle", "placement-x", "placement-y", "placement-rotated", "place-button", "unload-button", "clear-placement-button"]) elements[id].disabled = disabled;
-}
-
-function updatePlaybackControls() {
-  const available = recordedEvents.length > 0;
-  for (const id of ["first-button", "previous-button", "next-button", "last-button", "timeline", "speed-select"]) elements[id].disabled = !available;
-  elements["play-button"].disabled = recordedEvents.length < 2;
-  elements["timeline"].max = Math.max(0, recordedEvents.length - 1);
-  elements["timeline"].value = currentFrameIndex;
-  elements["frame-counter"].textContent = available ? `${currentFrameIndex + 1} / ${recordedEvents.length}` : "—";
-}
-
-function appendEvents(events) {
-  if (!events.length) return;
-  const shouldFollow = followingLiveRun || recordedEvents.length === 0;
-  for (const event of events) {
-    if (recordedEvents.length && event.sequence <= recordedEvents[recordedEvents.length - 1].sequence) continue;
-    recordedEvents.push(event);
-    const row = document.createElement("li");
-    row.dataset.index = String(recordedEvents.length - 1);
-    const title = document.createElement("button");
-    title.type = "button";
-    title.className = "event-row";
-    title.textContent = `#${event.iteration} · ${event.event_type.replaceAll("_", " ")}`;
-    const details = document.createElement("small");
-    const metadata = Object.entries(event.metadata || {}).map(([key, value]) => `${key}: ${value}`).join(" · ");
-    details.textContent = `fitness ${formatNumber(event.current_fitness)}${metadata ? ` · ${metadata}` : ""}`;
-    title.append(details);
-    title.addEventListener("click", () => { followingLiveRun = false; seekTo(Number(row.dataset.index)); });
-    row.append(title);
-    elements["event-log"].append(row);
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed.");
   }
-  elements["trace-count"].textContent = recordedEvents.length;
-  elements["trace-status"].textContent = "LIVE TRACE";
-  elements["trace-explanation"].textContent = "Each entry is a state or stop event emitted by the running Python algorithm. Playback follows this recorded history.";
-  if (shouldFollow) seekTo(recordedEvents.length - 1);
-  renderChart();
-  updatePlaybackControls();
-}
 
-function seekTo(index) {
-  if (!recordedEvents.length) return;
-  currentFrameIndex = Math.max(0, Math.min(recordedEvents.length - 1, index));
-  elements["state-view"].value = "trace";
-  const event = selectedEvent();
-  elements["current-iteration"].textContent = event.iteration;
-  elements["current-fitness"].textContent = formatNumber(event.current_fitness);
-  elements["best-fitness"].textContent = formatNumber(event.best_fitness);
-  elements["event-log"].querySelectorAll("li").forEach((row, rowIndex) => row.classList.toggle("selected", rowIndex === currentFrameIndex));
-  updatePlaybackControls();
-  renderChart();
-  renderDeck();
-}
-
-function renderChart() {
-  const svg = elements["fitness-chart"];
-  svg.replaceChildren();
-  if (!recordedEvents.length) return;
-  const namespace = "http://www.w3.org/2000/svg";
-  const make = (tag, attributes = {}) => {
-    const node = document.createElementNS(namespace, tag);
-    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
-    return node;
-  };
-  const width = 900, height = 220, left = 54, right = 18, top = 16, bottom = 30;
-  const values = recordedEvents.flatMap((event) => [Number(event.current_fitness), Number(event.best_fitness)]).filter(Number.isFinite);
-  if (!values.length) return;
-  let min = Math.min(...values), max = Math.max(...values);
-  if (min === max) { min -= 1; max += 1; }
-  const x = (index) => left + (recordedEvents.length < 2 ? 0 : index / (recordedEvents.length - 1) * (width - left - right));
-  const y = (value) => top + (max - value) / (max - min) * (height - top - bottom);
-  for (let line = 0; line < 4; line += 1) {
-    const lineY = top + line * (height - top - bottom) / 3;
-    svg.append(make("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, class: "chart-grid" }));
-    const label = make("text", { x: left - 8, y: lineY + 4, "text-anchor": "end", class: "chart-label" });
-    label.textContent = formatNumber(max - line * (max - min) / 3);
-    svg.append(label);
-  }
-  svg.append(make("line", { x1: left, y1: top, x2: left, y2: height - bottom, class: "chart-axis" }));
-  svg.append(make("line", { x1: left, y1: height - bottom, x2: width - right, y2: height - bottom, class: "chart-axis" }));
-  const series = (key, className) => make("polyline", {
-    points: recordedEvents.map((event, index) => `${x(index)},${y(Number(event[key]))}`).join(" "), class: className,
-  });
-  svg.append(series("current_fitness", "chart-current"), series("best_fitness", "chart-best"));
-  const selected = recordedEvents[currentFrameIndex];
-  svg.append(make("circle", { cx: x(currentFrameIndex), cy: y(Number(selected.best_fitness)), r: 5, class: "chart-marker" }));
-}
-
-function stopPlayback() {
-  if (playbackTimer) window.clearInterval(playbackTimer);
-  playbackTimer = null;
-  elements["play-button"].textContent = "Play";
-}
-
-function togglePlayback() {
-  if (playbackTimer) { stopPlayback(); return; }
-  if (currentFrameIndex >= recordedEvents.length - 1) seekTo(0);
-  elements["play-button"].textContent = "Pause";
-  const speed = [0.5, 1, 2, 4][elements["speed-select"].selectedIndex] || 1;
-  playbackTimer = window.setInterval(() => {
-    if (currentFrameIndex >= recordedEvents.length - 1) { stopPlayback(); return; }
-    seekTo(currentFrameIndex + 1);
-  }, 700 / speed);
-}
-
-function applyRunStatus(snapshot) {
-  elements["run-live-state"].textContent = snapshot.status;
-  elements["run-live-elapsed"].textContent = `${formatNumber(snapshot.elapsed_ms)} ms`;
-  elements["run-progress-bar"].classList.toggle("active", snapshot.status === "pending" || snapshot.status === "running");
-  if (snapshot.status === "running" || snapshot.status === "pending") setStatus(snapshot.status === "pending" ? "Queued" : "Computing");
-}
-
-async function pollRun(runId) {
-  while (activeRunId === runId) {
-    const snapshot = await requestJson(`/api/runs/${runId}/events?after=${recordedEvents.length ? recordedEvents[recordedEvents.length - 1].sequence : -1}`);
-    applyRunStatus(snapshot);
-    appendEvents(snapshot.events || []);
-    if (snapshot.status === "completed") {
-      result = snapshot.result;
-      setInputsDisabled(false);
-      followingLiveRun = false;
-      elements["trace-status"].textContent = snapshot.sampled_history ? "SAMPLED TRACE" : "RECORDED TRACE";
-      elements["trace-explanation"].textContent = snapshot.sampled_history
-        ? "Large history was sampled by the backend; the initial, final, and key events were retained."
-        : "Recorded states come directly from algorithm execution. Use the timeline or event list to inspect each state.";
-      elements["result-summary"].innerHTML = `<p>${escapeHtml(result.algorithm_name)} complete</p><small>Actual Python result · seed ${result.seed} · ${escapeHtml(snapshot.status)}</small>`;
-      elements["initial-objective"].textContent = formatNumber(result.summary.initial_objective);
-      elements.improvement.textContent = formatNumber(result.summary.improvement);
-      elements["compute-time"].textContent = `${result.summary.duration_ms.toFixed(2)} ms`;
-      elements["iteration-count"].textContent = result.summary.iterations;
-      if (recordedEvents.length) seekTo(recordedEvents.length - 1);
-      else { elements["state-view"].value = "final"; renderDeck(); }
-      setStatus("Run complete");
-      activeRunId = null;
-      return;
-    }
-    if (snapshot.status === "failed") {
-      setInputsDisabled(false);
-      elements["result-summary"].innerHTML = `<p class="error">Run failed</p><small>${escapeHtml(snapshot.error || "Unknown worker error")}</small>`;
-      elements["trace-explanation"].textContent = "Execution stopped with an error. Any states recorded before failure remain available.";
-      setStatus("Run failed", true);
-      activeRunId = null;
-      return;
-    }
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
-  }
+  return data;
 }
 
 async function loadExample() {
-  const data = await requestJson("/api/example");
-  fillEditor(data);
-  setStatus("Ready");
-}
-
-async function validateInput() {
-  elements["validation-message"].textContent = "Validating with Python model…";
-  elements["validation-message"].className = "message";
   try {
-    const payload = { ...getProblem() };
-    if (hasCustomInitialState) payload.state = editorState;
-    const data = await requestJson("/api/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    elements["validation-message"].textContent = hasCustomInitialState
-      ? `Valid placement · shipping fee ${formatNumber(data.objective)} at the selected start state.`
-      : `Valid configuration · shipping fee ${formatNumber(data.objective)} at a generated start state.`;
-    elements["validation-message"].className = "message success";
-    setStatus("Input valid");
+    const problem = await requestJson("/api/example");
+    fillForm(problem);
+    elements.status.textContent = "Ready";
   } catch (error) {
-    elements["validation-message"].textContent = error.message;
-    elements["validation-message"].className = "message error";
-    setStatus("Validation error", true);
+    elements.status.textContent = "Could not load example: " + error.message;
   }
 }
 
-function algorithmPayload() {
+async function loadProblemFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    fillForm(JSON.parse(await file.text()));
+    elements.status.textContent = "Loaded " + file.name;
+  } catch (error) {
+    elements.runError.textContent = "Could not load JSON: " + error.message;
+  }
+
+  elements.problemFile.value = "";
+}
+
+function saveProblemFile() {
+  const problem = {
+    ...getProblem(),
+    initial_state: getInitialState(),
+  };
+  const file = new Blob([JSON.stringify(problem, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(file);
+  link.download = "problem.json";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function runAlgorithm(event) {
+  event.preventDefault();
+  runData = null;
+  selectedTrial = null;
+  elements.trialPicker.hidden = true;
+  elements.trialSelect.replaceChildren();
+  elements.runError.textContent = "";
+  elements.runButton.disabled = true;
+  elements.fitnessChartSection.hidden = true;
+  runStartedAt = performance.now();
+  elements.status.textContent = "Running... 0.0 s";
+  runTimer = setInterval(() => {
+    const elapsed = (performance.now() - runStartedAt) / 1000;
+    elements.status.textContent = `Running... ${elapsed.toFixed(1)} s`;
+  }, 100);
+  elements.resultSummary.textContent = "Running...";
+  elements.resultJson.textContent = "Running...";
+
   const payload = {
     ...getProblem(),
-    algorithm: elements["algorithm-select"].value,
-    objective: elements["objective-select"].value,
-    seed: Number(elements["seed-input"].value),
+    initial_state: getInitialState(),
+    algorithm: elements.algorithm.value,
+    objective: elements.objective.value,
+    seed: Number(elements.seed.value),
+    trials: Number(elements.trials.value),
   };
-  if (hasCustomInitialState) payload.state = editorState;
-  return payload;
-}
 
-async function runAlgorithm() {
-  if (activeRunId) return;
-  clearTrace();
-  setInputsDisabled(true);
-  elements["run-live-state"].textContent = "Submitting";
-  elements["result-summary"].innerHTML = "<p>Starting algorithm…</p><small>Live updates show actual Python execution progress.</small>";
-  setStatus("Submitting run");
-  try {
-    const payload = algorithmPayload();
-    const response = await requestJson("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    activeRunId = response.run_id;
-    followingLiveRun = true;
-    elements["run-live-state"].textContent = response.status;
-    await pollRun(activeRunId);
-  } catch (error) {
-    activeRunId = null;
-    setInputsDisabled(false);
-    elements["result-summary"].innerHTML = `<p class="error">Run failed</p><small>${escapeHtml(error.message)}</small>`;
-    elements["run-live-state"].textContent = "Failed";
-    setStatus("Error", true);
+  if (elements.algorithm.value === "genetic") {
+    payload.population_size = Number(elements.populationSize.value);
+    payload.iterations = Number(elements.iterations.value);
   }
-}
 
-async function runExperiments() {
-  elements["experiment-button"].disabled = true;
-  setStatus("Running three trials");
   try {
-    const payload = { ...getProblem(), algorithm: elements["algorithm-select"].value, objective: elements["objective-select"].value, seed: Number(elements["seed-input"].value) };
-    const data = await requestJson("/api/experiments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const rows = data.trials.map((trial, index) => `<tr><td>${index + 1}</td><td>${trial.seed}</td><td>${formatNumber(trial.summary.final_objective)}</td><td>${trial.summary.duration_ms.toFixed(2)} ms</td></tr>`).join("");
-    elements["experiment-results"].innerHTML = `<table><thead><tr><th>TRIAL</th><th>SEED</th><th>FINAL OBJECTIVE</th><th>COMPUTE</th></tr></thead><tbody>${rows}</tbody></table><p>Observed mean: ${formatNumber(data.summary.mean_final_objective)} · min ${formatNumber(data.summary.min_final_objective)} · max ${formatNumber(data.summary.max_final_objective)}. Iteration curves are unavailable for this endpoint.</p>`;
-    setStatus("Trials complete");
-  } catch (error) {
-    elements["experiment-results"].textContent = error.message;
-    elements["experiment-results"].className = "experiment-results error";
-    setStatus("Experiment unavailable", true);
-  } finally {
-    elements["experiment-button"].disabled = Boolean(activeRunId);
-  }
-}
-
-async function initialize() {
-  try {
-    algorithms = await requestJson("/api/algorithms");
-    elements["algorithm-select"].replaceChildren(...algorithms.map((algorithm) => {
-      const option = document.createElement("option");
-      option.value = algorithm.id;
-      option.textContent = algorithm.available ? algorithm.name : `${algorithm.name} · Implementation Pending`;
-      option.disabled = !algorithm.available;
-      return option;
-    }));
-    elements["algorithm-select"].addEventListener("change", () => {
-      elements["algorithm-note"].textContent = "Progress is captured from the actual algorithm loop; no estimated steps are shown.";
+    const data = await requestJson("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    await loadExample();
+
+    let bestTrialIndex = 0;
+    runData = data;
+    let bestTrial = data.trials[0];
+
+    for (let index = 0; index < data.trials.length; index += 1) {
+      const trial = data.trials[index];
+      if (trial.summary.final_objective > bestTrial.summary.final_objective) {
+        bestTrial = trial;
+        bestTrialIndex = index;
+      }
+    }
+
+    data.trials.forEach((trial, index) => {
+      const option = document.createElement("option");
+      option.value = index;
+      option.textContent = `Trial ${index + 1}: objective ${trial.summary.final_objective}`;
+      elements.trialSelect.append(option);
+    });
+    elements.trialSelect.value = bestTrialIndex;
+    elements.trialPicker.hidden = data.trials.length < 2;
+    showTrial(bestTrialIndex);
+    elements.status.textContent = "Complete";
   } catch (error) {
-    setStatus("Connection error", true);
-    elements["validation-message"].textContent = error.message;
+    runData = null;
+    selectedTrial = null;
+    elements.resultSummary.textContent = "No result.";
+    elements.resultJson.textContent = "No result.";
+    elements.fitnessChartSection.hidden = true;
+    elements.runError.textContent = error.message;
+    elements.status.textContent = "Run failed";
+    renderDeck(getInitialState());
+  } finally {
+    clearInterval(runTimer);
+    elements.runButton.disabled = false;
   }
 }
 
-document.getElementById("add-vehicle").addEventListener("click", () => { addVehicle(); configurationChanged(); });
-elements["vehicle-list"].addEventListener("click", (event) => {
-  if (event.target.matches(".remove-vehicle")) { event.target.closest(".vehicle-card").remove(); configurationChanged(); }
-});
-elements["vehicle-list"].addEventListener("input", configurationChanged);
-for (const id of ["ship-width", "ship-length", "ship-capacity"]) {
-  elements[id].addEventListener("input", configurationChanged);
-}
-document.getElementById("load-example").addEventListener("click", () => loadExample().catch((error) => setStatus(error.message, true)));
-document.getElementById("validate-button").addEventListener("click", validateInput);
-elements["run-button"].addEventListener("click", runAlgorithm);
-elements["experiment-button"].addEventListener("click", runExperiments);
-elements["state-view"].addEventListener("change", renderDeck);
-elements["objective-select"].addEventListener("change", renderDeck);
-elements["placement-vehicle"].addEventListener("change", () => {
-  const placement = editorState.placements[elements["placement-vehicle"].value];
-  elements["placement-x"].value = placement?.x ?? 0;
-  elements["placement-y"].value = placement?.y ?? 0;
-  elements["placement-rotated"].checked = placement?.rotated ?? false;
-});
-elements["place-button"].addEventListener("click", () => placeSelectedVehicle());
-elements["unload-button"].addEventListener("click", () => applyPlacement(null));
-elements["clear-placement-button"].addEventListener("click", resetPlacement);
-elements.deck.addEventListener("click", (event) => {
-  if (elements["state-view"].value !== "editor" || activeRunId || placementPending) return;
-  const rect = elements.deck.getBoundingClientRect();
-  const step = Number.parseFloat(elements.deck.style.getPropertyValue("--cell-size")) + 2;
-  const x = Math.floor((event.clientX - rect.left - 2) / step);
-  const y = Math.floor((event.clientY - rect.top - 2) / step);
-  const data = getProblem();
-  if (x >= 0 && y >= 0 && x < data.ship.width && y < data.ship.length) placeSelectedVehicle(x, y);
-});
-elements["timeline"].addEventListener("input", (event) => { followingLiveRun = false; seekTo(Number(event.target.value)); });
-elements["first-button"].addEventListener("click", () => { followingLiveRun = false; seekTo(0); });
-elements["previous-button"].addEventListener("click", () => { followingLiveRun = false; seekTo(currentFrameIndex - 1); });
-elements["play-button"].addEventListener("click", togglePlayback);
-elements["next-button"].addEventListener("click", () => { followingLiveRun = false; seekTo(currentFrameIndex + 1); });
-elements["last-button"].addEventListener("click", () => { followingLiveRun = false; seekTo(recordedEvents.length - 1); });
-window.addEventListener("resize", renderDeck);
-document.getElementById("export-json").addEventListener("click", () => {
-  const file = new Blob([`${JSON.stringify(getProblem(), null, 2)}\n`], { type: "application/json" });
-  const link = document.createElement("a"); link.href = URL.createObjectURL(file); link.download = "cargo-problem.json"; link.click(); URL.revokeObjectURL(link.href);
-});
-document.getElementById("import-file").addEventListener("change", async (event) => {
-  const [file] = event.target.files;
-  if (!file) return;
-  try { fillEditor(JSON.parse(await file.text())); elements["validation-message"].textContent = "Imported JSON. Validate before running."; }
-  catch { elements["validation-message"].textContent = "Could not read a valid problem JSON file."; elements["validation-message"].className = "message error"; }
-  event.target.value = "";
+document.getElementById("add-vehicle").addEventListener("click", () => {
+  addVehicle();
+  clearResult();
 });
 
-initialize();
+elements.vehicleList.addEventListener("click", (event) => {
+  if (event.target.matches(".remove-vehicle")) {
+    event.target.closest(".vehicle-row").remove();
+    clearResult();
+  }
+});
+
+elements.vehicleList.addEventListener("change", (event) => {
+  if (event.target.matches(".outside-vehicle")) {
+    updatePlacementInputs(event.target.closest(".vehicle-row"));
+    clearResult();
+  }
+});
+
+elements.form.addEventListener("input", clearResult);
+elements.runSettings.addEventListener("input", clearResult);
+elements.algorithm.addEventListener("change", () => {
+  updateAlgorithmFields();
+  clearResult();
+});
+elements.form.addEventListener("submit", runAlgorithm);
+elements.trialSelect.addEventListener("change", () => showTrial(Number(elements.trialSelect.value)));
+elements.problemFile.addEventListener("change", loadProblemFile);
+document.getElementById("save-json").addEventListener("click", saveProblemFile);
+document.getElementById("randomize-all").addEventListener("click", randomizeInitialState);
+document.getElementById("randomize-grid").addEventListener("click", randomizeGrid);
+document.getElementById("randomize-vehicles").addEventListener("click", randomizeVehicles);
+document.getElementById("randomize-placements").addEventListener("click", randomizePlacements);
+elements.toggleConfig.addEventListener("click", () => {
+  const hidden = elements.columns.classList.toggle("hide-config");
+  elements.toggleConfig.textContent = hidden ? "Show config" : "Hide config";
+  requestAnimationFrame(renderDeckAfterLayout);
+});
+elements.toggleResult.addEventListener("click", () => {
+  const hidden = elements.columns.classList.toggle("hide-result");
+  elements.toggleResult.textContent = hidden ? "Show result" : "Hide result";
+  requestAnimationFrame(renderDeckAfterLayout);
+});
+window.addEventListener("resize", renderDeckAfterLayout);
+updateAlgorithmFields();
+loadExample();
+
+function renderDeckAfterLayout() {
+  if (selectedTrial && selectedTrial.genetic) {
+    drawFitnessChart(selectedTrial.genetic);
+  }
+
+  if (selectedTrial === null) {
+    renderDeck(getInitialState());
+    return;
+  }
+
+  renderDeck(selectedTrial.final_state);
+}
+
+function showTrial(index) {
+  selectedTrial = runData.trials[index];
+  const totalVehicles = Object.keys(selectedTrial.final_state.placements).length;
+  const objectiveName = selectedTrial.objective === "eta" ? "ETA" : "Shipping fee";
+  elements.resultSummary.textContent = [
+    `Algorithm: ${selectedTrial.algorithm_name}`,
+    `Objective: ${objectiveName}`,
+    `Trial: ${index + 1} of ${runData.summary.trial_count}`,
+    `Final objective: ${selectedTrial.summary.final_objective}`,
+    `Mean objective: ${runData.summary.mean_final_objective}`,
+    `Vehicles loaded: ${selectedTrial.final_metrics.loaded_count} of ${totalVehicles}`,
+    `Trial runtime: ${selectedTrial.summary.duration_ms.toFixed(2)} ms`,
+    `Total runtime: ${runData.summary.total_duration_ms.toFixed(2)} ms`,
+    ...(selectedTrial.genetic ? [
+      `Population: ${selectedTrial.genetic.population_size}`,
+      `Iterations: ${selectedTrial.genetic.iterations}`,
+    ] : []),
+    `File: ${runData.result_file}`,
+  ].join("\n");
+  elements.resultJson.textContent = JSON.stringify({
+    result_file: runData.result_file,
+    run_summary: runData.summary,
+    trial: selectedTrial,
+  }, null, 2);
+  if (selectedTrial.genetic) {
+    elements.fitnessChartSection.hidden = false;
+    drawFitnessChart(selectedTrial.genetic);
+  } else {
+    elements.fitnessChartSection.hidden = true;
+  }
+  renderDeck(selectedTrial.final_state);
+}
+
+function drawFitnessChart(genetic) {
+  const canvas = elements.fitnessChart;
+  const context = canvas.getContext("2d");
+  const width = canvas.clientWidth;
+  const height = 240;
+  const values = [...genetic.max_fitness_history, ...genetic.average_fitness_history];
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const valueRange = maximum - minimum || 1;
+  const left = 65;
+  const right = 12;
+  const top = 12;
+  const bottom = 48;
+
+  canvas.width = width;
+  canvas.height = height;
+  context.clearRect(0, 0, width, height);
+  context.font = "12px system-ui";
+  context.fillStyle = "#222";
+  context.strokeStyle = "#888";
+  context.beginPath();
+  context.moveTo(left, top);
+  context.lineTo(left, height - bottom);
+  context.lineTo(width - right, height - bottom);
+  context.stroke();
+  context.fillText(maximum.toFixed(2), 24, top + 4);
+  context.fillText(minimum.toFixed(2), 24, height - bottom);
+  context.fillText("0", left - 3, height - bottom + 16);
+  context.fillText(String(genetic.iterations), width - right - 20, height - bottom + 16);
+
+  context.save();
+  context.translate(12, height / 2);
+  context.rotate(-Math.PI / 2);
+  context.textAlign = "center";
+  context.fillText("Objective value", 0, 0);
+  context.restore();
+
+  context.textAlign = "center";
+  context.fillText("Generation", width / 2, height - 4);
+  context.textAlign = "left";
+
+  for (const [history, dash] of [[genetic.max_fitness_history, []], [genetic.average_fitness_history, [5, 4]]]) {
+    context.beginPath();
+    context.strokeStyle = "#386641";
+    context.lineWidth = 2;
+    context.setLineDash(dash);
+
+    history.forEach((value, index) => {
+      const x = left + index / (history.length - 1 || 1) * (width - left - right);
+      const y = height - bottom - (value - minimum) / valueRange * (height - top - bottom);
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+
+    context.stroke();
+  }
+
+  context.setLineDash([]);
+}
