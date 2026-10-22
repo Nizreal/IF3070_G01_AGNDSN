@@ -6,7 +6,7 @@ from .steepest import steepest_ascent
 
 
 def random_restart(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, evaluate=shipping_fee_fitness, max_restarts: int = 100) -> dict:
-    first_search = steepest_ascent(initial_state, ship, vehicles, evaluate)
+    first_search = steepest_ascent(initial_state, ship, vehicles, evaluate, rng)
     best_state = first_search["state"]
     best_score = evaluate(best_state, vehicles)
     objective_history = first_search["objective_history"].copy()
@@ -16,7 +16,7 @@ def random_restart(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle
 
     for _ in range(max_restarts):
         current = random_state(ship, vehicles, rng)
-        search = steepest_ascent(current, ship, vehicles, evaluate)
+        search = steepest_ascent(current, ship, vehicles, evaluate, rng)
         iterations_per_restart.append(search["iterations"])
 
         start_score = search["objective_history"][0]

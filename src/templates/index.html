@@ -27,6 +27,7 @@
             <option value="sideways">Hill Climbing with Sideways Moves</option>
             <option value="random_restart">Random-Restart Hill Climbing</option>
             <option value="annealing">Simulated Annealing</option>
+            <option value="brute_force">Brute Force</option>
             <option value="genetic">Genetic Algorithm</option>
           </select>
         </label>
@@ -50,6 +51,13 @@
           </label>
           <label>Generations
             <input id="iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
+          </label>
+        </div>
+      </div>
+      <div id="stochastic-settings" class="algorithm-settings" hidden>
+        <div class="fields">
+          <label>Maximum iterations
+            <input id="max-iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
           </label>
         </div>
       </div>
@@ -134,11 +142,11 @@
           <ol id="restart-iterations"></ol>
         </div>
         <div id="annealing-chart-section" hidden>
-          <h3>e^(delta / T) by iteration</h3>
+          <h3>e^(delta / T) plot by iteration</h3>
           <canvas id="annealing-chart" height="240"></canvas>
         </div>
         <div id="fitness-chart-section" hidden>
-          <h3>Objective by iteration</h3>
+          <h3>Objective plot</h3>
           <canvas id="fitness-chart" height="240"></canvas>
           <p id="fitness-chart-legend"></p>
         </div>

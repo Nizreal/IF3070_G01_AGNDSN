@@ -80,6 +80,7 @@ def run():
         objective = data.get("objective", "shipping_fee")
         population_size = data.get("population_size", 30)
         iterations = data.get("iterations", 100)
+        max_iterations = data.get("max_iterations", 100)
         max_sideways_moves = data.get("max_sideways_moves", 10000)
         max_restarts = data.get("max_restarts", 100)
 
@@ -95,6 +96,7 @@ def run():
                 initial_state,
                 population_size,
                 iterations,
+                max_iterations,
                 max_sideways_moves,
                 max_restarts,
             )

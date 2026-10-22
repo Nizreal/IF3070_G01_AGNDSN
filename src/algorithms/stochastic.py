@@ -1,10 +1,10 @@
 import random
 from ..models import State, Ship, Vehicle
 from ..problem import shipping_fee_fitness
-from ..neighbors import iter_neighbors
+from ..neighbors import random_neighbor
 
 
-def stochastic(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness, rng: random.Random | None = None) -> dict:
+def stochastic(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness, rng: random.Random | None = None, max_iterations: int = 100) -> dict:
     if rng is None:
         rng = random.Random()
 
@@ -12,21 +12,12 @@ def stochastic(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], e
     objective_history = [evaluate(current, vehicles)]
     iterations = 0
 
-    while True:
-        current_score = evaluate(current, vehicles)
+    for _ in range(max_iterations):
+        neighbor = random_neighbor(current, ship, vehicles, rng)
 
-        improves_neighbors = []
+        if neighbor is not None and evaluate(neighbor, vehicles) > evaluate(current, vehicles):
+            current = neighbor
 
-        for neighbor in iter_neighbors(current, ship, vehicles):
-            neighbor_score = evaluate(neighbor, vehicles)
-
-            if neighbor_score > current_score:
-                improves_neighbors.append(neighbor)
-
-        if not improves_neighbors:
-            break
-
-        current = rng.choice(improves_neighbors)
         iterations += 1
         objective_history.append(evaluate(current, vehicles))
 

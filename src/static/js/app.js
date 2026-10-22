@@ -14,6 +14,8 @@ const elements = {
   gaSettings: document.getElementById("ga-settings"),
   populationSize: document.getElementById("population-size"),
   iterations: document.getElementById("iterations"),
+  stochasticSettings: document.getElementById("stochastic-settings"),
+  maxIterations: document.getElementById("max-iterations"),
   sidewaysSettings: document.getElementById("sideways-settings"),
   maxSidewaysMoves: document.getElementById("max-sideways-moves"),
   restartSettings: document.getElementById("restart-settings"),
@@ -209,11 +211,14 @@ function clearResult() {
 function updateAlgorithmFields() {
   const algorithm = elements.algorithm.value;
   const isGenetic = algorithm === "genetic";
+  const isStochastic = algorithm === "stochastic";
   const isSideways = algorithm === "sideways";
   const isRandomRestart = algorithm === "random_restart";
   elements.gaSettings.hidden = !isGenetic;
   elements.populationSize.disabled = !isGenetic;
   elements.iterations.disabled = !isGenetic;
+  elements.stochasticSettings.hidden = !isStochastic;
+  elements.maxIterations.disabled = !isStochastic;
   elements.sidewaysSettings.hidden = !isSideways;
   elements.maxSidewaysMoves.disabled = !isSideways;
   elements.restartSettings.hidden = !isRandomRestart;
@@ -459,6 +464,9 @@ async function runAlgorithm(event) {
     payload.population_size = Number(elements.populationSize.value);
     payload.iterations = Number(elements.iterations.value);
   }
+  if (elements.algorithm.value === "stochastic") {
+    payload.max_iterations = Number(elements.maxIterations.value);
+  }
   if (elements.algorithm.value === "sideways") {
     payload.max_sideways_moves = Number(elements.maxSidewaysMoves.value);
   }
@@ -596,7 +604,9 @@ function showTrial(index) {
     `Vehicles loaded: ${selectedTrial.final_metrics.loaded_count} of ${totalVehicles}`,
     `Trial runtime: ${selectedTrial.summary.duration_ms.toFixed(2)} ms`,
     `Total runtime: ${runData.summary.total_duration_ms.toFixed(2)} ms`,
-    `Iterations: ${selectedTrial.search.iterations}`,
+    ...(selectedTrial.algorithm === "brute_force"
+      ? [`Complete states checked: ${selectedTrial.search.states_checked}`]
+      : [`Iterations: ${selectedTrial.search.iterations}`]),
     ...(selectedTrial.genetic ? [
       `Population: ${selectedTrial.genetic.population_size}`,
     ] : []),
@@ -717,7 +727,8 @@ function drawFitnessChart(trial) {
   context.restore();
 
   context.textAlign = "center";
-  context.fillText("Iteration", width / 2, height - 4);
+  const xAxisLabel = trial.algorithm === "brute_force" ? "States checked" : "Iteration";
+  context.fillText(xAxisLabel, width / 2, height - 4);
   context.textAlign = "left";
 
   const histories = [[history, []]];

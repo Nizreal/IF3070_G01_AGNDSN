@@ -8,10 +8,8 @@ from ..problem import shipping_fee_fitness
 
 def simulated_annealing(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, evaluate=shipping_fee_fitness, initial_temperature: float = 90.0, cooling_rate: float = 0.995, max_iterations: int = 2000) -> dict:
     current = initial_state
-    best = current
-    best_score = evaluate(best, vehicles)
     temperature = initial_temperature
-    objective_history = [best_score]
+    objective_history = [evaluate(current, vehicles)]
     eET_history = []
     stuck_iterations = []
     local_optimum_cache = {}
@@ -35,9 +33,6 @@ def simulated_annealing(initial_state: State, ship: Ship, vehicles: dict[str, Ve
                 current = neighbor
 
         current_score = evaluate(current, vehicles)
-        if current_score > best_score:
-            best = current
-            best_score = current_score
 
         state_key = current.key()
         if state_key not in local_optimum_cache:
@@ -48,12 +43,12 @@ def simulated_annealing(initial_state: State, ship: Ship, vehicles: dict[str, Ve
         if local_optimum_cache[state_key]:
             stuck_iterations.append(iteration)
 
-        objective_history.append(best_score)
+        objective_history.append(current_score)
         temperature *= cooling_rate
 
     iterations = len(objective_history) - 1
     return {
-        "state": best,
+        "state": current,
         "iterations": iterations,
         "iteration_history": list(range(iterations + 1)),
         "objective_history": objective_history,

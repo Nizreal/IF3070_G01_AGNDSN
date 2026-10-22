@@ -1,6 +1,7 @@
 import random
 from time import perf_counter
 
+from .algorithms.brute_force import brute_force
 from .algorithms.genetic import genetic_algorithm
 from .algorithms.random_restart import random_restart
 from .algorithms.sideways import sideways
@@ -17,6 +18,7 @@ ALGORITHMS = {
     "sideways": "Hill Climbing with Sideways Moves",
     "random_restart": "Random-Restart Hill Climbing",
     "annealing": "Simulated Annealing",
+    "brute_force": "Brute Force",
     "genetic": "Genetic Algorithm",
 }
 
@@ -59,6 +61,7 @@ def run_algorithm(
     initial_state: State | None = None,
     population_size: int = 30,
     iterations: int = 100,
+    max_iterations: int = 100,
     max_sideways_moves: int = 10000,
     max_restarts: int = 100,
 ) -> dict:
@@ -90,7 +93,9 @@ def run_algorithm(
 
         started = perf_counter()
         rng = random.Random(seed)
-        if algorithm_id == "random_restart":
+        if algorithm_id == "brute_force":
+            search_result = brute_force(ship, vehicles, evaluate)
+        elif algorithm_id == "random_restart":
             search_result = random_restart(initial_state, ship, vehicles, rng, evaluate, max_restarts)
         elif algorithm_id == "sideways":
             search_result = sideways(initial_state, ship, vehicles, evaluate, max_sideways_moves)
@@ -103,9 +108,9 @@ def run_algorithm(
                 evaluate=evaluate,
             )
         elif algorithm_id == "stochastic":
-            search_result = stochastic(initial_state, ship, vehicles, evaluate=evaluate, rng=rng)
+            search_result = stochastic(initial_state, ship, vehicles, evaluate=evaluate, rng=rng, max_iterations=max_iterations)
         else:
-            search_result = steepest_ascent(initial_state, ship, vehicles, evaluate)
+            search_result = steepest_ascent(initial_state, ship, vehicles, evaluate, rng)
 
         final_state = search_result["state"]
         duration_ms = (perf_counter() - started) * 1000
@@ -145,9 +150,13 @@ def run_algorithm(
             "max_fitness_history": genetic_result["max_fitness_history"],
             "avg_fitness_history": genetic_result["avg_fitness_history"],
         }
+    elif algorithm_id == "brute_force":
+        result["search"]["states_checked"] = search_result["states_checked"]
     elif algorithm_id == "sideways":
         result["search"]["max_sideways_moves"] = max_sideways_moves
         result["search"]["sideways_moves"] = search_result["sideways_moves"]
+    elif algorithm_id == "stochastic":
+        result["search"]["max_iterations"] = max_iterations
     elif algorithm_id == "random_restart":
         result["search"]["max_restarts"] = max_restarts
         result["search"]["restart_count"] = search_result["restart_count"]
