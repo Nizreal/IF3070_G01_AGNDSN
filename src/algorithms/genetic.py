@@ -5,6 +5,8 @@ from ..models import Placement, Ship, State, Vehicle
 from ..neighbors import random_neighbor
 from ..problem import footprint, is_valid, random_state, shipping_fee_fitness
 
+# Salindia tidak menyebutkan apakah function harus return best historical score atau current score
+# Jadi ambil referensi dari https://www.geeksforgeeks.org/dsa/genetic-algorithms/ untuk return best historical score.
 
 def select_parent(population: list[State], scores: list[float], rng: random.Random) -> State:
     if sum(scores) == 0:
@@ -27,6 +29,7 @@ def repair(child: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.R
         placement = child.placements[vehicle_id]
         vehicle = vehicles[vehicle_id]
         alternatives = []
+
         for rotated in (False, True):
             width, length = footprint(vehicle, rotated)
             for y in range(ship.length - length + 1):
@@ -72,8 +75,6 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
     mutation_probability = 0.1
     population = []
     if initial_state is not None:
-        if not is_valid(initial_state, ship, vehicles):
-            raise ValueError("Initial state invalid.")
         population.append(State(initial_state.placements.copy()))
 
     while len(population) < population_size:

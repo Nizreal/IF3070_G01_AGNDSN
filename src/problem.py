@@ -1,5 +1,4 @@
 import json
-import math
 import random
 from pathlib import Path
 
@@ -13,47 +12,21 @@ def footprint(vehicle: Vehicle, rotated: bool) -> tuple[int, int]:
 
 
 def problem_from_data(data) -> tuple[Ship, dict[str, Vehicle]]:
-    if not isinstance(data, dict) or not isinstance(data.get("ship"), dict) or not isinstance(data.get("vehicles"), list):
-        raise ValueError("Invalid problem data.")
-
     ship_data = data["ship"]
-    if {"width", "length", "max_capacity"} - ship_data.keys():
-        raise ValueError("Missing ship fields.")
-    width = ship_data["width"]
-    length = ship_data["length"]
-    capacity = ship_data["max_capacity"]
-    if width < 0 or length < 0:
-        raise ValueError("Ship dimensions cannot be negative.")
-    if isinstance(capacity, bool) or not isinstance(capacity, (int, float)) or not math.isfinite(capacity) or capacity < 0:
-        raise ValueError("Invalid ship capacity.")
-    ship = Ship(width, length, capacity)
+    ship = Ship(ship_data["width"], ship_data["length"], ship_data["max_capacity"])
 
     vehicles: dict[str, Vehicle] = {}
-    required = {"id", "width", "length", "weight", "shipping_fee", "eta"}
-    for index, item in enumerate(data["vehicles"]):
-        if not isinstance(item, dict) or required - item.keys():
-            raise ValueError(f"Invalid vehicle data at row {index + 1}.")
-        vehicle_id = item["id"]
-        if not isinstance(vehicle_id, str) or not vehicle_id.strip():
-            raise ValueError(f"Vehicle {index + 1} needs an ID.")
-        if vehicle_id in vehicles:
-            raise ValueError(f"Duplicate vehicle ID: {vehicle_id}.")
-
-        width = item["width"]
-        length = item["length"]
-        weight = item["weight"]
-        shipping_fee = item["shipping_fee"]
-        eta = item["eta"]
-        if width < 0 or length < 0:
-            raise ValueError(f"{vehicle_id} dimensions cannot be negative.")
-        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight) or weight < 0:
-            raise ValueError(f"Invalid weight for {vehicle_id}.")
-        if isinstance(shipping_fee, bool) or not isinstance(shipping_fee, (int, float)) or not math.isfinite(shipping_fee) or shipping_fee < 0:
-            raise ValueError(f"Invalid shipping fee for {vehicle_id}.")
-        if isinstance(eta, bool) or not isinstance(eta, int):
-            raise ValueError(f"Invalid ETA for {vehicle_id}.")
-
-        vehicle = Vehicle(vehicle_id, width, length, weight, shipping_fee, eta)
+    for item in data["vehicles"]:
+        vehicle = Vehicle(
+            item["id"],
+            item["width"],
+            item["length"],
+            item["weight"],
+            item["shipping_fee"],
+            item["eta"],
+        )
+        if vehicle.id in vehicles:
+            raise ValueError(f"Duplicate vehicle ID: {vehicle.id}.")
         vehicles[vehicle.id] = vehicle
 
     return ship, vehicles
@@ -115,7 +88,7 @@ def eta_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
 
 def grid_from_state(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> list[list[str | None]]:
     if not is_valid(state, ship, vehicles):
-        raise ValueError("State invalid")
+        raise ValueError("Invalid state.")
 
     grid: list[list[str | None]] = []
     for y in range(ship.length):
