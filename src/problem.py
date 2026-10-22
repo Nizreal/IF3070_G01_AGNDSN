@@ -4,13 +4,13 @@ from pathlib import Path
 
 from .models import Placement, Ship, State, Vehicle
 
-
+# Mengambil ukuran kendaraan
 def footprint(vehicle: Vehicle, rotated: bool) -> tuple[int, int]:
     if rotated:
         return vehicle.length, vehicle.width
     return vehicle.width, vehicle.length
 
-
+# Membaca dan memvalidasi data input kapal dan kendaraan
 def problem_from_data(data) -> tuple[Ship, dict[str, Vehicle]]:
     ship_data = data["ship"]
     ship = Ship(ship_data["width"], ship_data["length"], ship_data["max_capacity"])
@@ -31,12 +31,12 @@ def problem_from_data(data) -> tuple[Ship, dict[str, Vehicle]]:
 
     return ship, vehicles
 
-
+# Membaca data kapal dan kendaraan dari file JSON
 def load_problem(path: str | Path) -> tuple[Ship, dict[str, Vehicle]]:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return problem_from_data(data)
 
-
+# Mengecek validasi penempatan kendaraan memenuhi batas ukuran deck, kapasitas, dan tidak saling bertabrakan
 def is_valid(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> bool:
     if state.placements.keys() != vehicles.keys():
         return False
@@ -65,7 +65,7 @@ def is_valid(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> bool:
 
     return True
 
-
+# Menghitung total shipping fee dari kendaraan yang dimuat ke kapal
 def shipping_fee_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
     total_fee = 0
     for vehicle_id, placement in state.placements.items():
@@ -74,7 +74,7 @@ def shipping_fee_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
 
     return total_fee
 
-
+# Menghitung skor prioritas kendaraan berdasarkan ETA, semakin kecil ETA semakin besar skornya
 def eta_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
     total_score = 0.0
 
@@ -85,7 +85,7 @@ def eta_fitness(state: State, vehicles: dict[str, Vehicle]) -> float:
 
     return total_score
 
-
+# Mengubah state menjadi grid 2D untuk menampilkan posisi kendaraan pada deck
 def grid_from_state(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> list[list[str | None]]:
     if not is_valid(state, ship, vehicles):
         raise ValueError("Invalid state.")
@@ -109,7 +109,7 @@ def grid_from_state(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> l
 
     return grid
 
-
+# Membuat state awal dengan mencoba menempatkan kendaraan pada posisi dan orientasi secara acak
 def random_state(ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random) -> State:
     state = State({vehicle_id: None for vehicle_id in vehicles})
     vehicle_ids = list(vehicles)
