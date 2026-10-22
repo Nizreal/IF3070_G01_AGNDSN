@@ -1,41 +1,46 @@
+import random
+
 from ..models import State, Ship, Vehicle
 from ..problem import random_state, shipping_fee_fitness
-from ..neighbors import iter_neighbors
-import random
+from .steepest import steepest_ascent
 
 
 def random_restart(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, evaluate=shipping_fee_fitness, max_restarts: int = 100) -> dict:
-    best = initial_state
-    iteration_per_search = []
-    restart_count = 0
+    first_search = steepest_ascent(initial_state, ship, vehicles, evaluate)
+    best_state = first_search["state"]
+    best_score = evaluate(best_state, vehicles)
+    objective_history = first_search["objective_history"].copy()
+    iteration_history = first_search["iteration_history"].copy()
+    total_iterations = first_search["iterations"]
+    iterations_per_restart = []
 
     for _ in range(max_restarts):
         current = random_state(ship, vehicles, rng)
-        iteration = 0
-        
-        while True:
-            current_score = evaluate(current, vehicles)
+        search = steepest_ascent(current, ship, vehicles, evaluate)
+        iterations_per_restart.append(search["iterations"])
 
-            best_neighbor = None
-            best_score = current_score 
+        start_score = search["objective_history"][0]
+        if start_score > best_score:
+            best_state = current
+            best_score = start_score
+        objective_history.append(best_score)
+        iteration_history.append(total_iterations)
 
-            for neighbor in iter_neighbors(current, ship, vehicles):
-                neighbor_score = evaluate(neighbor, vehicles)
-        
-                if (neighbor_score > best_score):
-                    best_neighbor = neighbor
-                    best_score = neighbor_score
-                iteration += 1
-        
-            if (best_neighbor is None):
-                break
-        
-            current = best_neighbor
+        for score in search["objective_history"][1:]:
+            total_iterations += 1
+            if score > best_score:
+                best_score = score
+            objective_history.append(best_score)
+            iteration_history.append(total_iterations)
 
-        if (evaluate(current, vehicles) > evaluate(best, vehicles)):
-            best = current
+        if search["objective_history"][-1] > evaluate(best_state, vehicles):
+            best_state = search["state"]
 
-        iteration_per_search.append(iteration)
-        restart_count += 1 
-
-    return {"best state": best, "restart_count": restart_count, "iteration_per_search": iteration_per_search, "max restarts": max_restarts}
+    return {
+        "state": best_state,
+        "iterations": total_iterations,
+        "restart_count": len(iterations_per_restart),
+        "iterations_per_restart": iterations_per_restart,
+        "iteration_history": iteration_history,
+        "objective_history": objective_history,
+    }

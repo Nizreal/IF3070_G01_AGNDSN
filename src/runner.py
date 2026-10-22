@@ -1,23 +1,23 @@
 import random
 from time import perf_counter
 
+from .algorithms.genetic import genetic_algorithm
 from .algorithms.random_restart import random_restart
-from .algorithms.simulated_annealing import simulated_annealing
 from .algorithms.sideways import sideways
+from .algorithms.simulated_annealing import simulated_annealing
 from .algorithms.steepest import steepest_ascent
 from .algorithms.stochastic import stochastic
-from .algorithms.genetic import genetic_algorithm
 from .models import State, Ship, Vehicle
 from .problem import eta_fitness, is_valid, random_state, shipping_fee_fitness
 
 
 ALGORITHMS = {
-    "steepest": {"name": "Steepest-Ascent Hill Climbing", "function": steepest_ascent},
-    "stochastic": {"name": "Stochastic Hill Climbing", "function": stochastic},
-    "sideways": {"name": "Hill Climbing with Sideways Moves", "function": sideways},
-    "random_restart": {"name": "Random-Restart Hill Climbing", "function": random_restart},
-    "annealing": {"name": "Simulated Annealing", "function": simulated_annealing},
-    "genetic": {"name": "Genetic Algorithm", "function": genetic_algorithm},
+    "steepest": "Steepest-Ascent Hill Climbing",
+    "stochastic": "Stochastic Hill Climbing",
+    "sideways": "Hill Climbing with Sideways Moves",
+    "random_restart": "Random-Restart Hill Climbing",
+    "annealing": "Simulated Annealing",
+    "genetic": "Genetic Algorithm",
 }
 
 
@@ -50,7 +50,18 @@ def problem_metrics(state: State, ship: Ship, vehicles: dict[str, Vehicle], eval
     }
 
 
-def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], seed: int, objective: str, initial_state: State | None = None, population_size: int = 30, iterations: int = 100, max_restarts: int = 100) -> dict:
+def run_algorithm(
+    algorithm_id: str,
+    ship: Ship,
+    vehicles: dict[str, Vehicle],
+    seed: int,
+    objective: str,
+    initial_state: State | None = None,
+    population_size: int = 30,
+    iterations: int = 100,
+    max_sideways_moves: int = 10000,
+    max_restarts: int = 100,
+) -> dict:
     if algorithm_id not in ALGORITHMS:
         raise ValueError("Select a known algorithm.")
 
@@ -61,29 +72,42 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
     else:
         raise ValueError("Objective must be shipping_fee or eta.")
 
-    ga_result = None
-    restart_result = None
-    annealing_result = None
+    genetic_result = None
+    search_result = None
     if algorithm_id == "genetic":
-        ga_result = genetic_algorithm(ship, vehicles, population_size, iterations, random.Random(seed), evaluate, initial_state)
-        initial_state = ga_result["initial_state"]
-        final_state = ga_result["best_state"]
-        duration_ms = ga_result["runtime_ms"]
+        genetic_result = genetic_algorithm(ship, vehicles, population_size, iterations, random.Random(seed), evaluate, initial_state)
+        initial_state = genetic_result["initial_state"]
+        final_state = genetic_result["best_state"]
+        duration_ms = genetic_result["runtime_ms"]
+        search_result = {
+            "iterations": genetic_result["iterations"],
+            "iteration_history": list(range(genetic_result["iterations"] + 1)),
+            "objective_history": genetic_result["max_fitness_history"],
+        }
     else:
         if initial_state is None:
             initial_state = random_state(ship, vehicles, random.Random(seed))
 
         started = perf_counter()
-        algorithm = ALGORITHMS[algorithm_id]["function"]
-        
+        rng = random.Random(seed)
         if algorithm_id == "random_restart":
-            restart_result = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate, max_restarts=max_restarts)
-            final_state = restart_result["best state"]
+            search_result = random_restart(initial_state, ship, vehicles, rng, evaluate, max_restarts)
+        elif algorithm_id == "sideways":
+            search_result = sideways(initial_state, ship, vehicles, evaluate, max_sideways_moves)
         elif algorithm_id == "annealing":
-            annealing_result = algorithm(initial_state, ship, vehicles, random.Random(seed), evaluate=evaluate)
-            final_state = annealing_result["best_state"]
+            search_result = simulated_annealing(
+                initial_state,
+                ship,
+                vehicles,
+                rng,
+                evaluate=evaluate,
+            )
+        elif algorithm_id == "stochastic":
+            search_result = stochastic(initial_state, ship, vehicles, evaluate=evaluate, rng=rng)
         else:
-            final_state = algorithm(initial_state, ship, vehicles, evaluate=evaluate)
+            search_result = steepest_ascent(initial_state, ship, vehicles, evaluate)
+
+        final_state = search_result["state"]
         duration_ms = (perf_counter() - started) * 1000
 
     if not is_valid(final_state, ship, vehicles):
@@ -93,7 +117,7 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
     final_metrics = problem_metrics(final_state, ship, vehicles, evaluate)
     result = {
         "algorithm": algorithm_id,
-        "algorithm_name": ALGORITHMS[algorithm_id]["name"],
+        "algorithm_name": ALGORITHMS[algorithm_id],
         "seed": seed,
         "status": "completed",
         "objective": objective,
@@ -107,32 +131,33 @@ def run_algorithm(algorithm_id: str, ship: Ship, vehicles: dict[str, Vehicle], s
         },
         "initial_metrics": initial_metrics,
         "final_metrics": final_metrics,
+        "search": {
+            "iterations": search_result["iterations"],
+            "iteration_history": search_result["iteration_history"],
+            "objective_history": search_result["objective_history"],
+        },
     }
 
-    if ga_result is not None:
+    if genetic_result is not None:
         result["genetic"] = {
-            "population_size": ga_result["population_size"],
-            "iterations": ga_result["iterations"],
-            "max_fitness_history": ga_result["max_fitness_history"],
-            "average_fitness_history": ga_result["average_fitness_history"],
+            "population_size": genetic_result["population_size"],
+            "iterations": genetic_result["iterations"],
+            "max_fitness_history": genetic_result["max_fitness_history"],
+            "avg_fitness_history": genetic_result["avg_fitness_history"],
         }
-        
-    if restart_result is not None:
-        result["random_restart"] = {
-            "restart_count": restart_result["restart_count"],
-            "iteration_per_search": restart_result["iteration_per_search"],
-            "max_restarts": restart_result["max restarts"],
-        }
-
-    if annealing_result is not None:
-        iteration_count = len(annealing_result["acceptance_probability_history"])
-        stuck_iterations = annealing_result["stuck_iterations"]
+    elif algorithm_id == "sideways":
+        result["search"]["max_sideways_moves"] = max_sideways_moves
+        result["search"]["sideways_moves"] = search_result["sideways_moves"]
+    elif algorithm_id == "random_restart":
+        result["search"]["max_restarts"] = max_restarts
+        result["search"]["restart_count"] = search_result["restart_count"]
+        result["search"]["iterations_per_restart"] = search_result["iterations_per_restart"]
+    elif algorithm_id == "annealing":
         result["annealing"] = {
-            "iteration_count": iteration_count,
-            "acceptance_probability_history": annealing_result["acceptance_probability_history"],
-            "stuck_iterations": stuck_iterations,
-            "stuck_count": len(stuck_iterations),
-            "stuck_frequency": len(stuck_iterations) / iteration_count if iteration_count else 0,
+            "eET_history": search_result["eET_history"],
+            "stuck_iterations": search_result["stuck_iterations"],
+            "stuck_count": search_result["stuck_count"],
+            "stuck_frequency": search_result["stuck_frequency"],
         }
 
     return result

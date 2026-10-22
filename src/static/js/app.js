@@ -1,9 +1,9 @@
 const elements = {
   status: document.getElementById("status"),
-  columns: document.querySelector(".columns"),
   toggleConfig: document.getElementById("toggle-config"),
   toggleResult: document.getElementById("toggle-result"),
   form: document.getElementById("run-form"),
+  resultPanel: document.getElementById("result-panel"),
   runSettings: document.getElementById("run-settings"),
   problemFile: document.getElementById("problem-file"),
   shipWidth: document.getElementById("ship-width"),
@@ -12,10 +12,12 @@ const elements = {
   vehicleList: document.getElementById("vehicle-list"),
   algorithm: document.getElementById("algorithm-select"),
   gaSettings: document.getElementById("ga-settings"),
-  restartSettings: document.getElementById("restart-settings"),
-  maxRestarts: document.getElementById("max-restarts"),
   populationSize: document.getElementById("population-size"),
   iterations: document.getElementById("iterations"),
+  sidewaysSettings: document.getElementById("sideways-settings"),
+  maxSidewaysMoves: document.getElementById("max-sideways-moves"),
+  restartSettings: document.getElementById("restart-settings"),
+  maxRestarts: document.getElementById("max-restarts"),
   objective: document.getElementById("objective-select"),
   seed: document.getElementById("seed-input"),
   trials: document.getElementById("trial-count"),
@@ -35,6 +37,7 @@ const elements = {
   annealingChart: document.getElementById("annealing-chart"),
   fitnessChartSection: document.getElementById("fitness-chart-section"),
   fitnessChart: document.getElementById("fitness-chart"),
+  fitnessChartLegend: document.getElementById("fitness-chart-legend"),
 };
 
 const randomSettings = {
@@ -204,11 +207,15 @@ function clearResult() {
 }
 
 function updateAlgorithmFields() {
-  const isGenetic = elements.algorithm.value === "genetic";
-  const isRandomRestart = elements.algorithm.value === "random_restart";
+  const algorithm = elements.algorithm.value;
+  const isGenetic = algorithm === "genetic";
+  const isSideways = algorithm === "sideways";
+  const isRandomRestart = algorithm === "random_restart";
   elements.gaSettings.hidden = !isGenetic;
   elements.populationSize.disabled = !isGenetic;
   elements.iterations.disabled = !isGenetic;
+  elements.sidewaysSettings.hidden = !isSideways;
+  elements.maxSidewaysMoves.disabled = !isSideways;
   elements.restartSettings.hidden = !isRandomRestart;
   elements.maxRestarts.disabled = !isRandomRestart;
 }
@@ -452,6 +459,9 @@ async function runAlgorithm(event) {
     payload.population_size = Number(elements.populationSize.value);
     payload.iterations = Number(elements.iterations.value);
   }
+  if (elements.algorithm.value === "sideways") {
+    payload.max_sideways_moves = Number(elements.maxSidewaysMoves.value);
+  }
   if (elements.algorithm.value === "random_restart") {
     payload.max_restarts = Number(elements.maxRestarts.value);
   }
@@ -534,12 +544,14 @@ document.getElementById("randomize-grid").addEventListener("click", randomizeGri
 document.getElementById("randomize-vehicles").addEventListener("click", randomizeVehicles);
 document.getElementById("randomize-placements").addEventListener("click", randomizePlacements);
 elements.toggleConfig.addEventListener("click", () => {
-  const hidden = elements.columns.classList.toggle("hide-config");
+  const hidden = !elements.form.hidden;
+  elements.form.hidden = hidden;
   elements.toggleConfig.textContent = hidden ? "Show config" : "Hide config";
   requestAnimationFrame(renderDeckAfterLayout);
 });
 elements.toggleResult.addEventListener("click", () => {
-  const hidden = elements.columns.classList.toggle("hide-result");
+  const hidden = !elements.resultPanel.hidden;
+  elements.resultPanel.hidden = hidden;
   elements.toggleResult.textContent = hidden ? "Show result" : "Hide result";
   requestAnimationFrame(renderDeckAfterLayout);
 });
@@ -548,11 +560,9 @@ updateAlgorithmFields();
 loadExample();
 
 function renderDeckAfterLayout() {
-  if (selectedTrial && selectedTrial.annealing) {
-    drawAnnealingChart(selectedTrial.annealing);
-  }
-  if (selectedTrial && selectedTrial.genetic) {
-    drawFitnessChart(selectedTrial.genetic);
+  if (selectedTrial) {
+    drawFitnessChart(selectedTrial);
+    if (selectedTrial.annealing) drawAnnealingChart(selectedTrial.annealing);
   }
 
   if (selectedTrial === null) {
@@ -565,11 +575,11 @@ function renderDeckAfterLayout() {
 
 function showTrial(index) {
   selectedTrial = runData.trials[index];
-  const restart = selectedTrial.random_restart;
-  elements.restartResult.hidden = !restart;
+  const isRestart = selectedTrial.algorithm === "random_restart";
+  elements.restartResult.hidden = !isRestart;
   elements.restartIterations.replaceChildren();
-  if (restart) {
-    restart.iteration_per_search.forEach((count) => {
+  if (isRestart) {
+    selectedTrial.search.iterations_per_restart.forEach((count) => {
       const item = document.createElement("li");
       item.textContent = `${count} iterations`;
       elements.restartIterations.append(item);
@@ -586,15 +596,21 @@ function showTrial(index) {
     `Vehicles loaded: ${selectedTrial.final_metrics.loaded_count} of ${totalVehicles}`,
     `Trial runtime: ${selectedTrial.summary.duration_ms.toFixed(2)} ms`,
     `Total runtime: ${runData.summary.total_duration_ms.toFixed(2)} ms`,
+    `Iterations: ${selectedTrial.search.iterations}`,
     ...(selectedTrial.genetic ? [
       `Population: ${selectedTrial.genetic.population_size}`,
-      `Iterations: ${selectedTrial.genetic.iterations}`,
+    ] : []),
+    ...(selectedTrial.algorithm === "sideways" ? [
+      `Consecutive sideways moves at stop: ${selectedTrial.search.sideways_moves}`,
+      `Maximum sideways moves: ${selectedTrial.search.max_sideways_moves}`,
+    ] : []),
+    ...(selectedTrial.algorithm === "random_restart" ? [
+      `Restarts: ${selectedTrial.search.restart_count} of ${selectedTrial.search.max_restarts}`,
+      `Iterations per restart: ${selectedTrial.search.iterations_per_restart.join(", ") || "None"}`,
     ] : []),
     ...(selectedTrial.annealing ? [
-      `Iterations: ${selectedTrial.annealing.iteration_count}`,
       `Stuck at local optimum: ${selectedTrial.annealing.stuck_count} iterations (${(selectedTrial.annealing.stuck_frequency * 100).toFixed(1)}%)`,
     ] : []),
-    ...(restart ? [`Restarts: ${restart.restart_count} of ${restart.max_restarts}`] : []),
     `File: ${runData.result_file}`,
   ].join("\n");
   elements.resultJson.textContent = JSON.stringify({
@@ -602,12 +618,11 @@ function showTrial(index) {
     run_summary: runData.summary,
     trial: selectedTrial,
   }, null, 2);
-  if (selectedTrial.genetic) {
-    elements.fitnessChartSection.hidden = false;
-    drawFitnessChart(selectedTrial.genetic);
-  } else {
-    elements.fitnessChartSection.hidden = true;
-  }
+  elements.fitnessChartSection.hidden = false;
+  elements.fitnessChartLegend.textContent = selectedTrial.genetic
+    ? "Solid = max; dashed = average"
+    : "Objective score";
+  drawFitnessChart(selectedTrial);
   elements.annealingChartSection.hidden = !selectedTrial.annealing;
   if (selectedTrial.annealing) {
     drawAnnealingChart(selectedTrial.annealing);
@@ -640,35 +655,39 @@ function drawAnnealingChart(annealing) {
   context.stroke();
   context.fillText("1", 32, top + 4);
   context.fillText("0", 32, height - bottom + 4);
-  context.fillText("1", left - 3, height - bottom + 16);
+  context.fillText("0", left - 3, height - bottom + 16);
   context.textAlign = "right";
-  context.fillText(String(annealing.iteration_count), width - right, height - bottom + 16);
+  context.fillText(String(annealing.eET_history.length), width - right, height - bottom + 16);
   context.textAlign = "center";
   context.fillText("Iteration", left + plotWidth / 2, height - 4);
   context.save();
   context.translate(12, top + plotHeight / 2);
   context.rotate(-Math.PI / 2);
-  context.fillText("exp(ΔE/T)", 0, 0);
+  context.fillText("exp(delta / T)", 0, 0);
   context.restore();
 
-  context.fillStyle = "#386641";
-  annealing.acceptance_probability_history.forEach((value, index) => {
+  context.fillStyle = "#222";
+  annealing.eET_history.forEach((value, index) => {
     if (value === null) return;
-    const x = left + index / Math.max(annealing.iteration_count - 1, 1) * plotWidth;
+    const x = left + (index + 1) / Math.max(annealing.eET_history.length, 1) * plotWidth;
     const y = height - bottom - value * plotHeight;
     context.fillRect(x - 2, y - 2, 4, 4);
   });
 }
 
-function drawFitnessChart(genetic) {
+function drawFitnessChart(trial) {
   const canvas = elements.fitnessChart;
   const context = canvas.getContext("2d");
   const width = canvas.clientWidth;
   const height = 240;
-  const values = [...genetic.max_fitness_history, ...genetic.average_fitness_history];
+  const history = trial.search.objective_history;
+  const iterations = trial.search.iteration_history;
+  const averageHistory = trial.genetic ? trial.genetic.avg_fitness_history : null;
+  const values = averageHistory ? [...history, ...averageHistory] : history;
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   const valueRange = maximum - minimum || 1;
+  const maxIteration = Math.max(...iterations, 1);
   const left = 65;
   const right = 12;
   const top = 12;
@@ -688,7 +707,7 @@ function drawFitnessChart(genetic) {
   context.fillText(maximum.toFixed(2), 24, top + 4);
   context.fillText(minimum.toFixed(2), 24, height - bottom);
   context.fillText("0", left - 3, height - bottom + 16);
-  context.fillText(String(genetic.iterations), width - right - 20, height - bottom + 16);
+  context.fillText(String(maxIteration), width - right - 20, height - bottom + 16);
 
   context.save();
   context.translate(12, height / 2);
@@ -698,17 +717,22 @@ function drawFitnessChart(genetic) {
   context.restore();
 
   context.textAlign = "center";
-  context.fillText("Generation", width / 2, height - 4);
+  context.fillText("Iteration", width / 2, height - 4);
   context.textAlign = "left";
 
-  for (const [history, dash] of [[genetic.max_fitness_history, []], [genetic.average_fitness_history, [5, 4]]]) {
+  const histories = [[history, []]];
+  if (averageHistory) {
+    histories.push([averageHistory, [5, 4]]);
+  }
+
+  for (const [values, dash] of histories) {
     context.beginPath();
-    context.strokeStyle = "#386641";
+    context.strokeStyle = "#222";
     context.lineWidth = 2;
     context.setLineDash(dash);
 
-    history.forEach((value, index) => {
-      const x = left + index / (history.length - 1 || 1) * (width - left - right);
+    values.forEach((value, index) => {
+      const x = left + iterations[index] / maxIteration * (width - left - right);
       const y = height - bottom - (value - minimum) / valueRange * (height - top - bottom);
       if (index === 0) {
         context.moveTo(x, y);

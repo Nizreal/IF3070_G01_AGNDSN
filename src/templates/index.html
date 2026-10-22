@@ -12,7 +12,7 @@
     <h1>Visualisasi</h1>
     <p id="status" role="status">Loading...</p>
 
-    <div class="layout-controls">
+    <div>
       <button id="toggle-config" type="button">Hide config</button>
       <button id="toggle-result" type="button">Hide result</button>
     </div>
@@ -43,18 +43,29 @@
           <input id="trial-count" type="number" value="1" min="1" step="1" required form="run-form">
         </label>
       </div>
-      <div id="ga-settings" class="fields ga-settings" hidden>
-        <label>Population size
-          <input id="population-size" type="number" value="30" min="1" step="1" required form="run-form" disabled>
-        </label>
-        <label>Generations
-          <input id="iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
-        </label>
+      <div id="ga-settings" class="algorithm-settings" hidden>
+        <div class="fields">
+          <label>Population size
+            <input id="population-size" type="number" value="30" min="1" step="1" required form="run-form" disabled>
+          </label>
+          <label>Generations
+            <input id="iterations" type="number" value="100" min="0" step="1" required form="run-form" disabled>
+          </label>
+        </div>
       </div>
-      <div id="restart-settings" class="fields" hidden>
-        <label>Maximum restarts
-          <input id="max-restarts" type="number" value="100" min="0" step="1" required form="run-form" disabled>
-        </label>
+      <div id="sideways-settings" class="algorithm-settings" hidden>
+        <div class="fields">
+          <label>Maximum sideways moves
+            <input id="max-sideways-moves" type="number" value="10000" min="1" step="1" required form="run-form" disabled>
+          </label>
+        </div>
+      </div>
+      <div id="restart-settings" class="algorithm-settings" hidden>
+        <div class="fields">
+          <label>Maximum restarts
+            <input id="max-restarts" type="number" value="100" min="0" step="1" required form="run-form" disabled>
+          </label>
+        </div>
       </div>
       <button id="run-button" type="submit" form="run-form">Run</button>
       <p id="run-error" class="error" role="alert"></p>
@@ -112,7 +123,7 @@
         <ul id="outside-list"></ul>
       </section>
 
-      <section>
+      <section id="result-panel">
         <h2>Result</h2>
         <label id="trial-picker" hidden>Trial
           <select id="trial-select"></select>
@@ -123,14 +134,13 @@
           <ol id="restart-iterations"></ol>
         </div>
         <div id="annealing-chart-section" hidden>
-          <h3>Acceptance probability by iteration</h3>
+          <h3>e^(delta / T) by iteration</h3>
           <canvas id="annealing-chart" height="240"></canvas>
-          <p>exp(ΔE/T) for non-improving neighbors; gaps mean an improving neighbor or no neighbor.</p>
         </div>
         <div id="fitness-chart-section" hidden>
-          <h3>Objective by generation</h3>
+          <h3>Objective by iteration</h3>
           <canvas id="fitness-chart" height="240"></canvas>
-          <p>Solid: maximum · dashed: average</p>
+          <p id="fitness-chart-legend"></p>
         </div>
         <details>
           <summary>Show selected trial JSON</summary>

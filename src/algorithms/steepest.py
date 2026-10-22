@@ -3,8 +3,10 @@ from ..problem import shipping_fee_fitness
 from ..neighbors import iter_neighbors
 
 
-def steepest_ascent(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness) -> State:
+def steepest_ascent(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness) -> dict:
     current = initial_state
+    objective_history = [evaluate(current, vehicles)]
+    iterations = 0
 
     while True:
         current_score = evaluate(current, vehicles)
@@ -20,6 +22,15 @@ def steepest_ascent(initial_state: State, ship: Ship, vehicles: dict[str, Vehicl
                 best_score = neighbor_score
 
         if (best_neighbor is None):
-            return current
+            break
 
         current = best_neighbor
+        iterations += 1
+        objective_history.append(best_score)
+
+    return {
+        "state": current,
+        "iterations": iterations,
+        "iteration_history": list(range(iterations + 1)),
+        "objective_history": objective_history,
+    }

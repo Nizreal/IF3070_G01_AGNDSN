@@ -15,51 +15,13 @@ main {
 }
 
 .columns {
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(400px, 1.5fr) minmax(300px, 1fr);
+  display: flex;
   gap: 24px;
   align-items: start;
 }
 
-.layout-controls {
-  display: flex;
-  gap: 8px;
-  margin: 16px 0;
-}
-
-.run-settings .fields {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.run-settings .ga-settings {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.algorithm-settings {
   margin-top: 12px;
-}
-
-.run-settings #restart-settings {
-  margin-top: 12px;
-}
-
-#ga-settings[hidden],
-#restart-settings[hidden] {
-  display: none;
-}
-
-.columns.hide-config {
-  grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr);
-}
-
-.columns.hide-result {
-  grid-template-columns: minmax(250px, 1fr) minmax(0, 2fr);
-}
-
-.columns.hide-config.hide-result {
-  grid-template-columns: 1fr;
-}
-
-.columns.hide-config > form,
-.columns.hide-result > section:last-child {
-  display: none;
 }
 
 section {
@@ -76,6 +38,11 @@ section {
 .columns > form,
 .columns > section {
   min-width: 0;
+  flex: 1;
+}
+
+.columns > section:first-of-type {
+  flex: 1.5;
 }
 
 h1, h2 {
@@ -94,15 +61,16 @@ p {
   margin: 8px 0;
 }
 
-.fields {
+.fields, .random-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fields {
   gap: 12px;
 }
 
 .random-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -154,22 +122,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: grid;
   gap: 10px;
   max-height: 60vh;
-  overflow-y: auto;
   padding-right: 8px;
 }
 
-.vehicle-row {
+.vehicle-row, .placement-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.vehicle-row {
   align-items: end;
 }
 
 .placement-fields {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
 }
 
 .placement-options {
@@ -218,8 +185,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: none;
 }
 
-.deck-scroll {
+#vehicle-list, .deck-scroll, pre {
   overflow: auto;
+}
+
+.deck-scroll {
   max-height: 65vh;
 }
 
@@ -246,7 +216,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 pre {
-  overflow: auto;
   max-height: 560px;
   padding: 12px;
   background: #f2f2f2;
@@ -255,35 +224,27 @@ pre {
 }
 
 @media (max-width: 1100px) {
-  .run-settings .fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-wrap: wrap;
   }
 
-  .columns.hide-config,
-  .columns.hide-result,
-  .columns.hide-config.hide-result {
-    grid-template-columns: 1fr;
-  }
-
-  .columns > section:last-child {
-    grid-column: 1 / -1;
+  .columns > form,
+  .columns > section {
+    flex-basis: calc(50% - 12px);
   }
 }
 
 @media (max-width: 720px) {
-  .run-settings .fields {
+  .fields {
     grid-template-columns: 1fr;
   }
 
   .columns {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
-  .columns > section:last-child {
-    grid-column: auto;
+  .columns > form,
+  .columns > section {
+    flex-basis: auto;
   }
 }

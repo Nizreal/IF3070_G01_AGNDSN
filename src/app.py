@@ -80,12 +80,24 @@ def run():
         objective = data.get("objective", "shipping_fee")
         population_size = data.get("population_size", 30)
         iterations = data.get("iterations", 100)
+        max_sideways_moves = data.get("max_sideways_moves", 10000)
         max_restarts = data.get("max_restarts", 100)
 
         started = perf_counter()
         results = []
         for trial in range(trials):
-            result = run_algorithm(algorithm_id, ship, vehicles, seed + trial, objective, initial_state, population_size, iterations, max_restarts)
+            result = run_algorithm(
+                algorithm_id,
+                ship,
+                vehicles,
+                seed + trial,
+                objective,
+                initial_state,
+                population_size,
+                iterations,
+                max_sideways_moves,
+                max_restarts,
+            )
             results.append(result)
         total_duration_ms = (perf_counter() - started) * 1000
 

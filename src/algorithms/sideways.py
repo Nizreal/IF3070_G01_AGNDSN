@@ -3,10 +3,11 @@ from ..problem import shipping_fee_fitness
 from ..neighbors import iter_neighbors
 
 
-def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness) -> State:
+def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], evaluate=shipping_fee_fitness, max_sideways_moves: int = 10000) -> dict:
     current = initial_state
-    sideways_max_iterate = 10000
-    iterate_count = 0
+    objective_history = [evaluate(current, vehicles)]
+    iterations = 0
+    sideways_moves = 0
     visited_states = set()
     visited_states.add(current.key())
 
@@ -26,16 +27,26 @@ def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], eva
                 best_neighbor = neighbor
                 best_score = neighbor_score
 
-        if (best_score > current_score):
-            iterate_count = 0
-        else :
-            iterate_count += 1
-
         if best_neighbor is None:
-            return current
-
-        if iterate_count >= sideways_max_iterate:
-            return current
+            break
 
         current = best_neighbor
+        iterations += 1
+        objective_history.append(best_score)
         visited_states.add(current.key())
+
+        if best_score == current_score:
+            sideways_moves += 1
+        else:
+            sideways_moves = 0
+
+        if sideways_moves >= max_sideways_moves:
+            break
+
+    return {
+        "state": current,
+        "iterations": iterations,
+        "sideways_moves": sideways_moves,
+        "iteration_history": list(range(iterations + 1)),
+        "objective_history": objective_history,
+    }
