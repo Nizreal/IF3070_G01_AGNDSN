@@ -1,8 +1,49 @@
 {
-  "ship": {"width": 4, "length": 4, "max_capacity": 6},
+  "ship": {
+    "width": 5,
+    "length": 5,
+    "max_capacity": 12
+  },
   "vehicles": [
-    {"id": "A", "width": 2, "length": 2, "weight": 4, "shipping_fee": 60, "eta": 3},
-    {"id": "B", "width": 2, "length": 2, "weight": 3, "shipping_fee": 45, "eta": 2},
-    {"id": "C", "width": 1, "length": 2, "weight": 2, "shipping_fee": 20, "eta": 1}
+    {
+      "id": "A",
+      "width": 3,
+      "length": 5,
+      "weight": 7,
+      "shipping_fee": 74,
+      "eta": 2
+    },
+    {
+      "id": "B",
+      "width": 2,
+      "length": 5,
+      "weight": 4,
+      "shipping_fee": 42,
+      "eta": 1
+    },
+    {
+      "id": "C",
+      "width": 3,
+      "length": 3,
+      "weight": 5,
+      "shipping_fee": 40,
+      "eta": 3
+    },
+    {
+      "id": "D",
+      "width": 2,
+      "length": 2,
+      "weight": 2,
+      "shipping_fee": 32,
+      "eta": 4
+    },
+    {
+      "id": "E",
+      "width": 1,
+      "length": 2,
+      "weight": 1,
+      "shipping_fee": 26,
+      "eta": 2
+    }
   ]
 }
