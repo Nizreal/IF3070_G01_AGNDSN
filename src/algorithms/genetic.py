@@ -5,9 +5,6 @@ from ..models import Placement, Ship, State, Vehicle
 from ..neighbors import random_neighbor
 from ..problem import footprint, is_valid, random_state, shipping_fee_fitness
 
-# Salindia tidak menyebutkan apakah function harus return best historical score atau current score
-# Jadi ambil referensi dari https://www.geeksforgeeks.org/dsa/genetic-algorithms/ untuk return best historical score.
-
 def select_parent(population: list[State], scores: list[float], rng: random.Random) -> State:
     if sum(scores) == 0:
         return rng.choice(population)
@@ -83,8 +80,7 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
     scores = [evaluate(state, vehicles) for state in population]
     initial_best_index = scores.index(max(scores))
     initial_best_state = State(population[initial_best_index].placements.copy())
-    best_state = State(initial_best_state.placements.copy())
-    best_fitness = scores[initial_best_index]
+    final_best_state = State(initial_best_state.placements.copy())
     max_fitness_history = [max(scores)]
     avg_fitness_history = [sum(scores) / len(scores)]
 
@@ -107,18 +103,15 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
         scores = [evaluate(state, vehicles) for state in population]
         generation_best_index = scores.index(max(scores))
         generation_best_fitness = scores[generation_best_index]
+        final_best_state = State(population[generation_best_index].placements.copy())
         max_fitness_history.append(generation_best_fitness)
         avg_fitness_history.append(sum(scores) / len(scores))
-
-        if generation_best_fitness > best_fitness:
-            best_state = State(population[generation_best_index].placements.copy())
-            best_fitness = generation_best_fitness
 
     runtime_ms = (perf_counter() - started) * 1000
 
     return {
         "initial_state": initial_best_state,
-        "best_state": best_state,
+        "best_state": final_best_state,
         "max_fitness_history": max_fitness_history,
         "avg_fitness_history": avg_fitness_history,
         "population_size": population_size,
