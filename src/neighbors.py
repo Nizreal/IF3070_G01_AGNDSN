@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from .models import Placement, Ship, State, Vehicle
 from .problem import footprint, is_valid
 
-
+# Memindahkan kendaraan ke posisi baru atau mengeluarkannya dari kapal
 def move(state: State, vehicle_id: str, placement: Placement | None, ship: Ship, vehicles: dict[str, Vehicle]) -> State | None:
     if vehicle_id not in state.placements:
         return None
@@ -24,7 +24,7 @@ def move(state: State, vehicle_id: str, placement: Placement | None, ship: Ship,
 
     return None
 
-
+# Menukar posisi dua kendaraan
 def swap(state: State, first_id: str, second_id: str, ship: Ship, vehicles: dict[str, Vehicle]) -> State | None:
     if first_id not in state.placements or second_id not in state.placements:
         return None
@@ -41,7 +41,7 @@ def swap(state: State, first_id: str, second_id: str, ship: Ship, vehicles: dict
 
     return None
 
-
+# Memutar kendaraan dengan posisi x dan y yang tetap
 def rotate(state: State, vehicle_id: str, ship: Ship, vehicles: dict[str, Vehicle]) -> State | None:
     placement = state.placements.get(vehicle_id)
     if placement is None:
@@ -55,7 +55,7 @@ def rotate(state: State, vehicle_id: str, ship: Ship, vehicles: dict[str, Vehicl
 
     return None
 
-
+# Mencari satu neighbor secara acak menggunakan move, swap, atau rotate
 def random_neighbor(state: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, max_attempts: int = 100) -> State | None:
     vehicle_ids = list(vehicles)
     if not vehicle_ids:
@@ -81,7 +81,7 @@ def random_neighbor(state: State, ship: Ship, vehicles: dict[str, Vehicle], rng:
 
     return None
 
-
+# Mencoba semua kemungkinan neighbor dari operasi move, swap, dan rotate
 def iter_neighbors(state: State, ship: Ship, vehicles: dict[str, Vehicle]) -> Iterator[State]:
     vehicle_ids = list(vehicles)
     seen = set()
