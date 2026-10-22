@@ -41,13 +41,13 @@ def sideways(initial_state: State, ship: Ship, vehicles: dict[str, Vehicle], eva
         objective_history.append(best_score)
         visited_states.add(current.key())
 
-        # Jika tidak ada perkembangan skor, iterasi bertambah. Jika sebaliknya iterasi dimulai dari 0
+        # Jika tidak ada perkembangan skor, jumlah gerak bertambah. Jika sebaliknya jumlah gerak dimulai dari 0
         if best_score == current_score:
             sideways_moves += 1
         else:
             sideways_moves = 0
 
-        # While loop berakhir ketika sudah iterasi max
+        # While loop berakhir ketika sudah gerakan sudah mencapai max
         if sideways_moves >= max_sideways_moves:
             break
 
