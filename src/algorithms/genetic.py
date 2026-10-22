@@ -1,9 +1,9 @@
 import random
 from time import perf_counter
 
-from ..models import Ship, State, Vehicle
+from ..models import Placement, Ship, State, Vehicle
 from ..neighbors import random_neighbor
-from ..problem import is_valid, random_state, shipping_fee_fitness
+from ..problem import footprint, is_valid, random_state, shipping_fee_fitness
 
 
 def select_parent(population: list[State], scores: list[float], rng: random.Random) -> State:
@@ -13,22 +13,44 @@ def select_parent(population: list[State], scores: list[float], rng: random.Rand
     return rng.choices(population, weights=scores, k=1)[0]
 
 
-def repair(child: State, ship: Ship, vehicles: dict[str, Vehicle]) -> State:
+def repair(child: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, evaluate=shipping_fee_fitness) -> State:
     repaired = State({vehicle_id: None for vehicle_id in vehicles})
+    priorities = {}
 
-    for vehicle_id in vehicles:
+    for vehicle_id, vehicle in vehicles.items():
+        priority_state = State({key: None for key in vehicles})
+        priority_state.placements[vehicle_id] = child.placements[vehicle_id]
+        priorities[vehicle_id] = evaluate(priority_state, vehicles)
+
+    ordered_ids = sorted(vehicles, key=priorities.get, reverse=True)
+    for vehicle_id in ordered_ids:
         placement = child.placements[vehicle_id]
-        if placement is None:
-            continue
+        vehicle = vehicles[vehicle_id]
+        alternatives = []
+        for rotated in (False, True):
+            width, length = footprint(vehicle, rotated)
+            for y in range(ship.length - length + 1):
+                for x in range(ship.width - width + 1):
+                    candidate = Placement(x, y, rotated)
+                    if candidate != placement:
+                        alternatives.append(candidate)
 
-        repaired.placements[vehicle_id] = placement
-        if not is_valid(repaired, ship, vehicles):
+        rng.shuffle(alternatives)
+        candidates = []
+        if placement is not None:
+            candidates.append(placement)
+        candidates.extend(alternatives)
+
+        for candidate in candidates:
+            repaired.placements[vehicle_id] = candidate
+            if is_valid(repaired, ship, vehicles):
+                break
             repaired.placements[vehicle_id] = None
 
     return repaired
 
 
-def crossover(parent1: State, parent2: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random) -> State:
+def crossover(parent1: State, parent2: State, ship: Ship, vehicles: dict[str, Vehicle], rng: random.Random, evaluate=shipping_fee_fitness) -> State:
     vehicle_ids = list(vehicles)
     if len(vehicle_ids) < 2:
         return State(parent1.placements.copy())
@@ -42,7 +64,7 @@ def crossover(parent1: State, parent2: State, ship: Ship, vehicles: dict[str, Ve
         else:
             placements[vehicle_id] = parent2.placements[vehicle_id]
 
-    return repair(State(placements), ship, vehicles)
+    return repair(State(placements), ship, vehicles, rng, evaluate)
 
 
 def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size: int, iterations: int, rng: random.Random, evaluate=shipping_fee_fitness, initial_state: State | None = None) -> dict:
@@ -71,7 +93,7 @@ def genetic_algorithm(ship: Ship, vehicles: dict[str, Vehicle], population_size:
         while len(new_population) < population_size:
             parent1 = select_parent(population, scores, rng)
             parent2 = select_parent(population, scores, rng)
-            child = crossover(parent1, parent2, ship, vehicles, rng)
+            child = crossover(parent1, parent2, ship, vehicles, rng, evaluate)
 
             if rng.random() < mutation_probability:
                 mutated = random_neighbor(child, ship, vehicles, rng)
